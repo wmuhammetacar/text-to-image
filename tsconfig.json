@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "types": ["node", "react", "react-dom"],
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "baseUrl": ".",
+    "paths": {
+      "@vi/contracts": ["packages/contracts/src/index.ts"],
+      "@vi/contracts/*": ["packages/contracts/src/*"],
+      "@vi/domain": ["packages/domain/src/index.ts"],
+      "@vi/domain/*": ["packages/domain/src/*"],
+      "@vi/application": ["packages/application/src/index.ts"],
+      "@vi/application/*": ["packages/application/src/*"],
+      "@vi/db": ["packages/db/src/index.ts"],
+      "@vi/db/*": ["packages/db/src/*"],
+      "@vi/providers": ["packages/providers/src/index.ts"],
+      "@vi/providers/*": ["packages/providers/src/*"],
+      "@vi/observability": ["packages/observability/src/index.ts"],
+      "@vi/observability/*": ["packages/observability/src/*"],
+      "@vi/config": ["packages/config/src/index.ts"],
+      "@vi/config/*": ["packages/config/src/*"]
+    }
+  },
+  "include": [
+    "apps/**/*.ts",
+    "apps/**/*.tsx",
+    "packages/**/*.ts",
+    "packages/**/*.tsx",
+    "tests/**/*.ts"
+  ]
+}

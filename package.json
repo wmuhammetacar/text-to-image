@@ -1,0 +1,47 @@
+{
+  "name": "visual-intelligence-platform",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run tests/application",
+    "test:integration": "vitest run tests/worker tests/api tests/security",
+    "test:security": "vitest run tests/security",
+    "dev:web": "set -a; [ -f .env ] && . ./.env; set +a; next dev apps/web --hostname 127.0.0.1 --port 3100",
+    "dev:worker": "set -a; [ -f .env ] && . ./.env; set +a; tsx apps/worker/src/main.ts",
+    "db:migrate": "bash scripts/db/migrate.sh",
+    "db:seed": "bash scripts/db/seed.sh",
+    "db:reset": "bash scripts/db/reset.sh"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
+    "@tailwindcss/postcss": "^4.2.2",
+    "autoprefixer": "^10.4.27",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.7.0",
+    "next": "^15.5.2",
+    "pg": "^8.16.3",
+    "postcss": "^8.5.8",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^4.2.2",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "@types/pg": "^8.15.5",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

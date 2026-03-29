@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: vi_local_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: visual_intelligence
+    ports:
+      - "54329:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d visual_intelligence"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - vi_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  vi_postgres_data:

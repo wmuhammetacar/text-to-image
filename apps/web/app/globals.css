@@ -1,0 +1,31 @@
+@config "../tailwind.config.js";
+@import "tailwindcss";
+
+:root {
+  --background: 195 28% 96%;
+  --foreground: 200 26% 14%;
+  --card: 0 0% 100%;
+  --card-foreground: 200 26% 14%;
+  --primary: 186 72% 34%;
+  --primary-foreground: 195 100% 98%;
+  --secondary: 200 18% 92%;
+  --secondary-foreground: 200 26% 24%;
+  --muted: 197 18% 89%;
+  --muted-foreground: 200 14% 38%;
+  --border: 196 19% 81%;
+  --input: 196 19% 81%;
+  --ring: 186 72% 34%;
+  --danger: 9 72% 49%;
+  --danger-foreground: 0 0% 100%;
+}
+
+* {
+  @apply border-border;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  min-height: 100vh;
+  background-image: radial-gradient(circle at 20% -10%, rgba(13, 148, 136, 0.18), transparent 34%),
+    radial-gradient(circle at 100% 0%, rgba(15, 118, 110, 0.15), transparent 38%);
+}
