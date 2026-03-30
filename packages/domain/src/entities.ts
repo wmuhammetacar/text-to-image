@@ -1,17 +1,192 @@
 import type {
+  GenerationPassStatus,
+  GenerationPassType,
   GenerationRefundState,
   GenerationRunPipelineState,
   GenerationState,
+  GenerationVisibility,
   JobQueueState,
   ModerationDecision,
   ModerationStage,
 } from "./states";
+
+export interface UserIntentProfile {
+  summary: string;
+  subjects: string[];
+  visualGoal: string;
+  narrativeIntent: string;
+  styleHints: string[];
+  forbiddenElements: string[];
+}
+
+export interface EmotionProfile {
+  dominantEmotion: string;
+  secondaryEmotions: string[];
+  intensity: number;
+  valence: number;
+  arousal: number;
+  atmosphere: string[];
+  themes: string[];
+  emotionalTone: string;
+}
+
+export interface DirectionScores {
+  intentMatchScore: number;
+  emotionMatchScore: number;
+  visualNoveltyScore: number;
+  compositionStrengthScore: number;
+  controllabilityScore: number;
+  totalScore: number;
+}
+
+export interface QualitySignalsSpec {
+  directionCount: number;
+  selectedDirectionScore: number;
+  scoreSpread: number;
+  ambiguityScore: number;
+  promptDensityScore: number;
+  controlSignalStrength: number;
+  bestVariantScore: number;
+  evaluatedVariantCount: number;
+  enhancementApplied: boolean;
+}
+
+export interface VariantQualityScoreSpec {
+  imageVariantId: string;
+  variantIndex: number;
+  aestheticScore: number;
+  promptAlignmentScore: number;
+  clarityScore: number;
+  compositionScore: number;
+  noveltyScore: number;
+  totalScore: number;
+  isBest: boolean;
+}
+
+export interface OutputQualitySpec {
+  bestVariantId: string | null;
+  bestVariantIndex: number | null;
+  evaluationSummary: string;
+  variantScores: VariantQualityScoreSpec[];
+}
+
+export interface CreativeDirectionSpec {
+  creativeType:
+    | "cinematic"
+    | "editorial"
+    | "atmospheric"
+    | "surreal"
+    | "minimal"
+    | "expressive"
+    | "documentary"
+    | "dreamy";
+  description: string;
+  narrativeIntent: string;
+  styleTags: string[];
+  composition: {
+    shotType: string;
+    cameraDistance: string;
+    cameraAngle: string;
+    depth: string;
+    sceneDensity: "low" | "medium" | "high";
+  };
+  lighting: {
+    type: string;
+    direction: string;
+    intensity: number;
+  };
+  colorPalette: {
+    primary: string;
+    secondary: string;
+    mood: string;
+  };
+  atmosphere: {
+    emotionalTone: string;
+    environmentFeel: string;
+    emotionalRenderingStyle: string;
+  };
+  symbolismLevel: number;
+  realismLevel: number;
+  stylizationLevel: number;
+  scores: DirectionScores;
+  selectionReason: string | null;
+  rejectionReason: string | null;
+}
+
+export interface VisualPlanSpec {
+  summary: string;
+  promptCore: string;
+  promptExpanded: string;
+  negativePrompt: string;
+  subjectDefinition: string;
+  subjectPriority: string[];
+  sceneStructure: string;
+  focalHierarchy: string[];
+  framing: string;
+  perspective: string;
+  cameraLanguage: string;
+  materialTextureBias: string;
+  backgroundComplexity: "low" | "medium" | "high";
+  motionEnergy: "low" | "medium" | "high";
+  symbolismPolicy: string;
+  realismLevel: number;
+  stylizationLevel: number;
+  keepConstraints: string[];
+  avoidConstraints: string[];
+  compositionPlan: {
+    framing: string;
+    subjectPlacement: string;
+  };
+  lightingPlan: {
+    keyLight: string;
+    fillLight: string;
+    rimLight: string;
+    contrast: string;
+    intensity: number;
+    logic: string;
+    notes: string;
+  };
+  colorStrategy: {
+    primary: string;
+    secondary: string;
+    mood: string;
+    saturation: string;
+    strategy: string;
+  };
+  detailDensity: "low" | "medium" | "high";
+  renderIntent: "realistic" | "artistic" | "hybrid";
+  constraints: {
+    forbiddenElements: string[];
+    safetyConstraints: string[];
+  };
+}
+
+export interface ExplainabilitySpec {
+  summary: string;
+  dominantInterpretation: string;
+  whySelectedDirection: string;
+  whyNotOtherDirections: string[];
+  emotionToVisualMapping: string;
+  intentToCompositionMapping: string;
+  styleReasoning: string;
+  riskOrAmbiguityNotes: string;
+  ambiguityScore: number;
+  ambiguityReasons: string[];
+  inferredAssumptions: string[];
+  qualitySignals: QualitySignalsSpec;
+  outputQuality?: OutputQualitySpec;
+  derivedFrom: Array<"user_intent" | "emotion_analysis" | "creative_direction">;
+}
 
 export interface Generation {
   id: string;
   userId: string;
   state: GenerationState;
   refundState: GenerationRefundState;
+  visibility: GenerationVisibility;
+  shareSlug: string;
+  publishedAt: Date | null;
+  featuredVariantId: string | null;
   activeRunId: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -65,6 +240,61 @@ export interface GenerationRun {
   updatedAt: Date;
 }
 
+export interface GenerationPass {
+  id: string;
+  generationId: string;
+  runId: string;
+  userId: string;
+  passType: GenerationPassType;
+  passIndex: number;
+  status: GenerationPassStatus;
+  inputArtifactPaths: string[];
+  outputArtifactPaths: string[];
+  summary: string | null;
+  metadataJson: Record<string, unknown>;
+  errorCode: string | null;
+  errorMessage: string | null;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type VariationType =
+  | "more_dramatic"
+  | "more_minimal"
+  | "more_realistic"
+  | "more_stylized"
+  | "change_lighting"
+  | "change_environment"
+  | "change_mood"
+  | "increase_detail"
+  | "simplify_scene"
+  | "keep_subject_change_environment"
+  | "keep_composition_change_style"
+  | "keep_mood_change_realism"
+  | "keep_style_change_subject"
+  | "upscale";
+
+export interface VariationRequest {
+  id: string;
+  generationId: string;
+  runId: string;
+  userId: string;
+  baseVariantId: string;
+  variationType: VariationType;
+  variationParametersJson: Record<string, unknown>;
+  remixSourceType: "public_generation" | null;
+  remixSourceGenerationId: string | null;
+  remixSourceVariantId: string | null;
+  remixDepth: number;
+  rootPublicGenerationId: string | null;
+  rootCreatorId: string | null;
+  requestedImageCount: number;
+  idempotencyKey: string;
+  createdAt: Date;
+}
+
 export interface ImageVariant {
   id: string;
   generationId: string;
@@ -72,6 +302,11 @@ export interface ImageVariant {
   userId: string;
   variantIndex: number;
   directionIndex: number | null;
+  parentVariantId: string | null;
+  rootGenerationId: string | null;
+  variationType: VariationType | null;
+  branchDepth: number;
+  isUpscaled: boolean;
   status: "completed" | "blocked" | "failed";
   storageBucket: string;
   storagePath: string;
@@ -158,8 +393,8 @@ export interface VisualPlan {
   runId: string;
   userId: string;
   selectedCreativeDirectionId: string | null;
-  planJson: Record<string, unknown>;
-  explainabilityJson: Record<string, unknown>;
+  planJson: VisualPlanSpec;
+  explainabilityJson: ExplainabilitySpec;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -171,7 +406,7 @@ export interface CreativeDirection {
   userId: string;
   directionIndex: number;
   directionTitle: string | null;
-  directionJson: Record<string, unknown>;
+  directionJson: CreativeDirectionSpec;
   createdAt: Date;
 }
 
@@ -180,7 +415,7 @@ export interface EmotionAnalysis {
   generationId: string;
   runId: string;
   userId: string;
-  analysisJson: Record<string, unknown>;
+  analysisJson: EmotionProfile;
   modelName: string | null;
   createdAt: Date;
 }
@@ -190,7 +425,7 @@ export interface UserIntent {
   generationId: string;
   runId: string;
   userId: string;
-  intentJson: Record<string, unknown>;
+  intentJson: UserIntentProfile;
   modelName: string | null;
   confidence: number | null;
   createdAt: Date;

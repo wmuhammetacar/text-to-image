@@ -133,7 +133,7 @@ describe("Worker / pipeline", () => {
     const repository = new InMemoryRepository();
     repository.seedUser(USER_ID, 10);
 
-    await createRun({
+    const created = await createRun({
       repository,
       text: "Sinematik bir dag yolu",
       requestedImageCount: 1,
@@ -149,6 +149,15 @@ describe("Worker / pipeline", () => {
     expect(transitions).toContain("analyzing->planning");
     expect(transitions).toContain("planning->generating");
     expect(transitions).toContain("generating->completed");
+
+    const passes = repository.getPassesByRun(created.runId);
+    expect(passes.map((entry) => entry.passType)).toEqual([
+      "concept",
+      "composition",
+      "detail",
+      "enhancement",
+    ]);
+    expect(passes.every((entry) => entry.status === "completed")).toBe(true);
   });
 
   it("tam basarida completed olur", async () => {

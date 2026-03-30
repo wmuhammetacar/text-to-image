@@ -41,19 +41,21 @@ export async function POST(request: Request): Promise<Response> {
   const webhookRateRule = buildWebhookRateRule(deps.config);
   const signatureHeader = request.headers.get("stripe-signature");
 
-  if (requestMeta.ipAddress !== null) {
-    enforceRateLimit({
-      key: requestMeta.ipAddress,
-      requestId,
-      logger: deps.logger,
-      rule: webhookRateRule,
-      context: {
-        route: "/api/v1/billing/stripe/webhook",
-      },
-    });
-  }
-
   try {
+    if (requestMeta.ipAddress !== null) {
+      await enforceRateLimit({
+        key: requestMeta.ipAddress,
+        requestId,
+        logger: deps.logger,
+        rule: webhookRateRule,
+        backend: deps.config.API_RATE_LIMIT_BACKEND,
+        databaseUrl: deps.config.DATABASE_URL,
+        context: {
+          route: "/api/v1/billing/stripe/webhook",
+        },
+      });
+    }
+
     const validatedSignature = requireStripeSignature(request);
     const rawBody = await request.text();
     if (rawBody.length === 0) {

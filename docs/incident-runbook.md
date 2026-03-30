@@ -19,6 +19,9 @@
   - `api_generation_refine_failed`
   - `api_billing_checkout_failed`
   - `api_billing_webhook_failed`
+  - `monetization_pricing_applied`
+  - `public_gallery_cache`
+  - `public_generation_cache`
   - `rate_limit_blocked`
   - `suspicious_activity_detected`
 - Worker log event’leri:
@@ -35,6 +38,10 @@
   2. Geçici provider hatalarında retry adaylarını belirle.
   3. Kalıcı validation/safety hatalarını manuel retry etme.
 - `stale_running` veya `stale_leased` yükselirse worker restart edilir.
+- Rate limit backend `postgres` modunda ise:
+  1. `public.rate_limit_counters` satır büyümesi kontrol edilir.
+  2. `idx_rate_limit_counters_scope_window` index health doğrulanır.
+  3. Gerekiyorsa `updated_at < now() - interval '2 hours'` cleanup manuel çalıştırılır.
 
 ## 4. Provider Outage Prosedürü
 
@@ -52,7 +59,17 @@
   3. Purchase/refund ledger etkisi örnek event ile doğrulanır.
 - Yanlış kredi yazımı varsa immutable ledger üzerinden telafi entry’si uygulanır.
 
-## 6. İyileşme ve Kapanış
+## 6. Monetization Incident Prosedürü
+
+- Kullanıcılar beklenmedik paywall görüyorsa:
+  1. Hata detayındaki `paywall_reason` kontrol edilir.
+  2. `MONETIZATION_*` env değerleri doğrulanır.
+  3. İlgili kullanıcı için `generation_run_debit` toplamları günlük/aylık pencerede kontrol edilir.
+- Aşırı debit maliyeti şüphesinde:
+  1. `monetization_pricing_applied` logunda `passCount` ve `creditCostPerImage` incelenir.
+  2. `GENERATION_*_PASS_COUNT` ile `MONETIZATION_*_MULTIPLIER` uyumu kontrol edilir.
+
+## 7. İyileşme ve Kapanış
 
 - Incident kapatmadan önce:
   - Hata oranı baseline seviyesine döndü.

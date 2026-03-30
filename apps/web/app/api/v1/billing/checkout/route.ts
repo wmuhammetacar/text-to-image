@@ -64,22 +64,26 @@ export async function POST(request: Request): Promise<Response> {
     const user = await deps.authService.requireUserFromRequest(request);
     userIdForLog = user.id;
 
-    enforceRateLimit({
+    await enforceRateLimit({
       key: user.id,
       requestId,
       logger: deps.logger,
       rule: rules.userRule,
+      backend: deps.config.API_RATE_LIMIT_BACKEND,
+      databaseUrl: deps.config.DATABASE_URL,
       context: {
         ipAddress: requestMeta.ipAddress,
       },
     });
 
     if (requestMeta.ipAddress !== null) {
-      enforceRateLimit({
+      await enforceRateLimit({
         key: requestMeta.ipAddress,
         requestId,
         logger: deps.logger,
         rule: rules.ipRule,
+        backend: deps.config.API_RATE_LIMIT_BACKEND,
+        databaseUrl: deps.config.DATABASE_URL,
         context: {
           userId: user.id,
         },

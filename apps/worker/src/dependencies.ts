@@ -93,6 +93,10 @@ export function getWorkerDependencies(): WorkerDependencies {
     providerBundle.imageProvider,
     applyRunRefundUseCase,
     logger,
+    {
+      fastModePassCount: config.GENERATION_FAST_PASS_COUNT,
+      fullModePassCount: config.GENERATION_FULL_PASS_COUNT,
+    },
   );
 
   singleton = {

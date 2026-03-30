@@ -54,7 +54,10 @@ function parseImageSize(size: string): { width: number; height: number } {
 }
 
 function buildDeterministicPath(input: ImageGenerationInput, variantIndex: number): string {
-  return `${input.generationId}/${input.runId}/variant-${variantIndex}.png`;
+  const passPrefix = input.passContext?.passType !== undefined
+    ? `${input.passContext.passType}/`
+    : "";
+  return `${input.generationId}/${input.runId}/${passPrefix}variant-${variantIndex}.png`;
 }
 
 function decodeBase64Image(base64: string, providerName: string): Uint8Array {
@@ -97,9 +100,14 @@ export class RealImageGenerationProvider implements ImageGenerationProvider {
   public async generate(input: ImageGenerationInput): Promise<ImageGenerationResult> {
     assertSafeBucketName(this.imageStorageBucket);
 
+    const promptExpanded = input.promptExpanded ?? input.prompt;
+    const effectivePrompt = input.negativePrompt !== undefined && input.negativePrompt.length > 0
+      ? `${promptExpanded}\n\nNegative prompt constraints: ${input.negativePrompt}`
+      : promptExpanded;
+
     const responsePayload = await this.httpClient.postJson("/images/generations", {
       model: this.model,
-      prompt: input.prompt,
+      prompt: effectivePrompt,
       n: input.requestedImageCount,
       size: this.imageSize,
       response_format: this.outputFormat,
@@ -157,12 +165,27 @@ export class RealImageGenerationProvider implements ImageGenerationProvider {
           mimeType: "image/png",
           width,
           height,
-          metadata: {
-            provider: this.providerName,
-            model: this.model,
-            revised_prompt: item.revised_prompt ?? null,
-          },
-        });
+            metadata: {
+              provider: this.providerName,
+              model: this.model,
+              revised_prompt: item.revised_prompt ?? null,
+              pass_type: input.passContext?.passType ?? null,
+              pass_index: input.passContext?.passIndex ?? null,
+              total_passes: input.passContext?.totalPasses ?? null,
+              variation_type: input.variationIntent?.variationType ?? null,
+              variation_delta: input.variationIntent?.deltaSummary ?? null,
+              render_intent: input.renderIntent ?? null,
+              style_tags: input.styleMetadata?.styleTags ?? [],
+              creative_type: input.styleMetadata?.creativeType ?? null,
+              emotional_rendering_style: input.styleMetadata?.emotionalRenderingStyle ?? null,
+              symbolism_level: input.styleMetadata?.symbolismLevel ?? null,
+              composition_hints: input.compositionHints ?? null,
+              lighting_hints: input.lightingHints ?? null,
+              color_hints: input.colorHints ?? null,
+              realism_level: input.realismLevel ?? null,
+              stylization_level: input.stylizationLevel ?? null,
+            },
+          });
       } catch (error) {
         partialErrors.push(error instanceof Error ? error : new Error("IMAGE_VARIANT_FAILED"));
       }
@@ -189,10 +212,27 @@ export class RealImageGenerationProvider implements ImageGenerationProvider {
       providerRequestRedacted: {
         endpoint: "/images/generations",
         model: this.model,
-        prompt_hash: deterministicHash(input.prompt),
-        prompt_length: input.prompt.length,
+        prompt_hash: deterministicHash(effectivePrompt),
+        prompt_length: effectivePrompt.length,
+        prompt_core_length: input.promptCore?.length ?? null,
+        negative_prompt_length: input.negativePrompt?.length ?? null,
         requested_image_count: input.requestedImageCount,
         image_size: this.imageSize,
+        pass_type: input.passContext?.passType ?? null,
+        pass_index: input.passContext?.passIndex ?? null,
+        total_passes: input.passContext?.totalPasses ?? null,
+        input_artifact_count: input.passContext?.inputArtifactPaths.length ?? 0,
+        variation_type: input.variationIntent?.variationType ?? null,
+        has_original_prompt_reference: input.variationIntent?.originalPromptReference !== undefined &&
+          input.variationIntent.originalPromptReference !== null,
+        render_intent: input.renderIntent ?? null,
+        style_tag_count: input.styleMetadata?.styleTags.length ?? null,
+        creative_type: input.styleMetadata?.creativeType ?? null,
+        has_composition_hints: input.compositionHints !== undefined,
+        has_lighting_hints: input.lightingHints !== undefined,
+        has_color_hints: input.colorHints !== undefined,
+        realism_level: input.realismLevel ?? null,
+        stylization_level: input.stylizationLevel ?? null,
       },
       providerResponseRedacted: {
         received_variant_count: selected.length,

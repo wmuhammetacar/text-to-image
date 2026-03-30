@@ -8,6 +8,14 @@ export const generationStates = [
 
 export type GenerationState = (typeof generationStates)[number];
 
+export const generationVisibilities = [
+  "private",
+  "unlisted",
+  "public",
+] as const;
+
+export type GenerationVisibility = (typeof generationVisibilities)[number];
+
 export const generationRefundStates = [
   "none",
   "full_refunded",
@@ -40,6 +48,24 @@ export const generationRunTerminalStates = [
 ] as const;
 
 export type GenerationRunTerminalState = (typeof generationRunTerminalStates)[number];
+
+export const generationPassTypes = [
+  "concept",
+  "composition",
+  "detail",
+  "enhancement",
+] as const;
+
+export type GenerationPassType = (typeof generationPassTypes)[number];
+
+export const generationPassStatuses = [
+  "queued",
+  "running",
+  "completed",
+  "failed",
+] as const;
+
+export type GenerationPassStatus = (typeof generationPassStatuses)[number];
 
 export const jobQueueStates = [
   "queued",

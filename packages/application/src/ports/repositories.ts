@@ -2,6 +2,7 @@ import type {
   CreativeDirection,
   EmotionAnalysis,
   Generation,
+  GenerationPass,
   GenerationRun,
   GenerationState,
   ImageVariant,
@@ -11,6 +12,9 @@ import type {
   ModerationStage,
   RefinementInstruction,
   UserIntent,
+  VariationRequest,
+  VariationType,
+  VisualPlan,
 } from "@vi/domain";
 
 export interface GenerationHistoryRow {
@@ -26,11 +30,62 @@ export interface GenerationHistoryPage {
   nextCursor: string | null;
 }
 
+export interface PublicGalleryRow {
+  generationId: string;
+  shareSlug: string;
+  visibility: "public";
+  publishedAt: Date;
+  creatorDisplayName: string;
+  creatorProfileHandle: string;
+  summary: string;
+  styleTags: string[];
+  moodTags: string[];
+  featuredImagePath: string | null;
+  totalRuns: number;
+  variationCount: number;
+  refinementCount: number;
+  remixCount: number;
+  branchCount: number;
+  totalPublicVariants: number;
+  creatorPublicGenerationCount: number;
+}
+
+export interface PublicGalleryPage {
+  items: PublicGalleryRow[];
+  nextCursor: string | null;
+}
+
+export interface PublicGenerationAggregate extends RunDetailAggregate {
+  creatorDisplayName: string;
+  creatorProfileHandle: string;
+  creatorUserId: string;
+  socialProof: {
+    remixCount: number;
+    branchCount: number;
+    totalPublicVariants: number;
+    creatorPublicGenerationCount: number;
+  };
+  lineage: {
+    remixDepth: number;
+    rootPublicGenerationId: string | null;
+    rootCreatorId: string | null;
+    remixSourceGenerationId: string | null;
+    remixSourceVariantId: string | null;
+    derivedPublicGenerationCount: number;
+    derivedPublicGenerationIds: string[];
+  };
+}
+
 export interface RunDetailAggregate {
   generation: Generation;
   activeRun: GenerationRun | null;
   runs: GenerationRun[];
+  passes: GenerationPass[];
   variants: ImageVariant[];
+  userIntent: UserIntent | null;
+  emotionAnalysis: EmotionAnalysis | null;
+  creativeDirections: CreativeDirection[];
+  visualPlan: VisualPlan | null;
 }
 
 export interface ExistingGenerationIdempotency {
@@ -51,10 +106,28 @@ export interface ExistingRefinementIdempotency {
   controlsDeltaJson: Record<string, unknown>;
 }
 
+export interface ExistingVariationIdempotency {
+  variationRequestId: string;
+  generationId: string;
+  runId: string;
+  baseVariantId: string;
+  variationType: VariationType;
+  variationParametersJson: Record<string, unknown>;
+  remixSourceType: "public_generation" | null;
+  remixSourceGenerationId: string | null;
+  remixSourceVariantId: string | null;
+  remixDepth: number;
+  rootPublicGenerationId: string | null;
+  rootCreatorId: string | null;
+  requestedImageCount: number;
+}
+
 export interface CreditBalance {
   creditAccountId: string;
   balance: number;
 }
+
+export type UserSegment = "b2c" | "pro_creator" | "b2b";
 
 export interface UserAbuseSignals {
   generationDebitCreditsLast24h: number;
@@ -113,12 +186,48 @@ export interface CreateRefineRunTxResult {
   runId: string;
 }
 
+export interface CreateVariationRunTxInput {
+  generationId: string;
+  sourceGenerationId: string;
+  userId: string;
+  baseVariantId: string;
+  allowForeignBaseVariant: boolean;
+  variationType: VariationType;
+  variationParametersJson: Record<string, unknown>;
+  remixSourceType?: "public_generation" | null;
+  remixSourceGenerationId?: string | null;
+  remixSourceVariantId?: string | null;
+  instructionText: string;
+  requestedImageCount: number;
+  idempotencyKey: string;
+  debitAmount: number;
+  correlationId: string;
+  inputModerationDecision: ModerationDecision;
+  inputModerationPolicyCode: string;
+  inputModerationMessage: string | null;
+}
+
+export interface CreateVariationRunTxResult {
+  variationRequestId: string;
+  runId: string;
+}
+
 export interface RunExecutionContext {
   generation: Generation;
   run: GenerationRun;
   generationRequestSourceText: string | null;
   generationRequestCreativeMode: "fast" | "balanced" | "directed" | null;
+  generationRequestControlsJson: Record<string, unknown> | null;
   refinementInstructionText: string | null;
+  refinementControlsDeltaJson: Record<string, unknown> | null;
+  variationType: VariationType | null;
+  variationParametersJson: Record<string, unknown> | null;
+  baseVariantId: string | null;
+  baseVariantRunId: string | null;
+  baseVariantStoragePath: string | null;
+  baseVariantBranchDepth: number | null;
+  baseVariantVariationType: VariationType | null;
+  baseVisualPlan: VisualPlan["planJson"] | null;
 }
 
 export interface InsertImageVariantInput {
@@ -127,6 +236,11 @@ export interface InsertImageVariantInput {
   userId: string;
   variantIndex: number;
   directionIndex: number | null;
+  parentVariantId: string | null;
+  rootGenerationId: string | null;
+  variationType: VariationType | null;
+  branchDepth: number;
+  isUpscaled: boolean;
   status: "completed" | "blocked" | "failed";
   storageBucket: string;
   storagePath: string;
@@ -146,14 +260,33 @@ export interface CreateAnalysisArtifactsInput {
   creativeDirections: Array<Omit<CreativeDirection, "id" | "generationId" | "runId" | "userId" | "createdAt">>;
   visualPlan: {
     selectedCreativeDirectionIndex: number | null;
-    planJson: Record<string, unknown>;
-    explainabilityJson: Record<string, unknown>;
+    planJson: VisualPlan["planJson"];
+    explainabilityJson: VisualPlan["explainabilityJson"];
   };
 }
 
+export interface CreateGenerationPassInput {
+  generationId: string;
+  runId: string;
+  userId: string;
+  passType: GenerationPass["passType"];
+  passIndex: number;
+  status: GenerationPass["status"];
+  inputArtifactPaths: string[];
+  outputArtifactPaths: string[];
+  summary: string | null;
+  metadataJson: Record<string, unknown>;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  startedAt?: Date | null;
+  completedAt?: Date | null;
+}
+
 export interface RepositoryTx {
+  createGenerationRoot(userId: string): Promise<{ generationId: string }>;
   createInitialRunBundle(input: CreateInitialRunTxInput): Promise<CreateInitialRunTxResult>;
   createRefineRunBundle(input: CreateRefineRunTxInput): Promise<CreateRefineRunTxResult>;
+  createVariationRunBundle(input: CreateVariationRunTxInput): Promise<CreateVariationRunTxResult>;
 
   updateGenerationActiveRun(generationId: string, runId: string): Promise<void>;
   updateGenerationState(generationId: string, state: GenerationState): Promise<void>;
@@ -187,6 +320,24 @@ export interface RepositoryTx {
   }): Promise<ModerationEvent>;
 
   createAnalysisArtifacts(input: CreateAnalysisArtifactsInput): Promise<void>;
+  updateVisualPlanExplainabilityByRun(params: {
+    runId: string;
+    explainabilityJson: VisualPlan["explainabilityJson"];
+  }): Promise<void>;
+  createGenerationPass(input: CreateGenerationPassInput): Promise<GenerationPass>;
+  updateGenerationPass(params: {
+    passId: string;
+    from: GenerationPass["status"];
+    to: GenerationPass["status"];
+    inputArtifactPaths?: string[];
+    outputArtifactPaths?: string[];
+    summary?: string | null;
+    metadataJson?: Record<string, unknown>;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+    setStartedAt?: boolean;
+    setCompletedAt?: boolean;
+  }): Promise<GenerationPass>;
 
   createProviderPayload(params: {
     generationId: string;
@@ -230,8 +381,22 @@ export interface Repository {
     userId: string,
     idempotencyKey: string,
   ): Promise<ExistingRefinementIdempotency | null>;
+  findVariationRequestByIdempotency(
+    userId: string,
+    idempotencyKey: string,
+  ): Promise<ExistingVariationIdempotency | null>;
 
+  getUserSegment(userId: string): Promise<UserSegment | null>;
+  getUserDebitUsageSince(params: {
+    userId: string;
+    since: Date;
+  }): Promise<number>;
   getCreditBalance(userId: string): Promise<CreditBalance | null>;
+  getImageVariantForUser(imageVariantId: string, userId: string): Promise<ImageVariant | null>;
+  getPublicVariantForRemix(params: {
+    sourceGenerationId: string;
+    sourceVariantId: string;
+  }): Promise<ImageVariant | null>;
 
   getGenerationDetailForUser(
     generationId: string,
@@ -239,12 +404,26 @@ export interface Repository {
   ): Promise<RunDetailAggregate | null>;
 
   getGenerationDetailForService(generationId: string): Promise<RunDetailAggregate | null>;
+  getPublicGenerationByShareSlug(params: {
+    shareSlug: string;
+    includeUnlisted: boolean;
+  }): Promise<PublicGenerationAggregate | null>;
 
   listGenerationHistoryForUser(params: {
     userId: string;
     limit: number;
     cursor: string | null;
   }): Promise<GenerationHistoryPage>;
+  listPublicGallery(params: {
+    limit: number;
+    cursor: string | null;
+  }): Promise<PublicGalleryPage>;
+  updateGenerationVisibilityForUser(params: {
+    generationId: string;
+    userId: string;
+    visibility: Generation["visibility"];
+    featuredVariantId: string | null;
+  }): Promise<Generation | null>;
 
   getRunExecutionContext(runId: string): Promise<RunExecutionContext | null>;
 

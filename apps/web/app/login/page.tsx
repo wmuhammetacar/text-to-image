@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ApiClientError } from "../../lib/api-client";
+import Link from "next/link";
 import { getBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
@@ -166,6 +167,13 @@ export default function LoginPage(): React.JSX.Element {
             >
               {mode === "signin" ? "Hesap oluştur" : "Giriş yap"}
             </button>
+          </div>
+          <div className="mt-3 text-center text-sm text-muted-foreground">
+            Public içerikleri keşfetmek için{" "}
+            <Link href="/gallery" className="font-medium text-primary">
+              galeriye git
+            </Link>
+            .
           </div>
         </CardContent>
       </Card>

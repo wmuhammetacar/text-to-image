@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, CreditCard, Heart, History, LogOut } from "lucide-react";
+import { Compass, CreditCard, Heart, History, LogOut, PanelTopOpen } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 
@@ -16,6 +16,7 @@ const navItems: NavItem[] = [
   { href: "/", label: "Oluştur", icon: Compass },
   { href: "/history", label: "Geçmiş", icon: History },
   { href: "/favorites", label: "Favoriler", icon: Heart },
+  { href: "/gallery", label: "Galeri", icon: PanelTopOpen },
   { href: "/billing", label: "Billing", icon: CreditCard },
 ];
 

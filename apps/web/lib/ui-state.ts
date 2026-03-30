@@ -1,6 +1,19 @@
 import type { GenerationDetailResponseDto } from "@vi/contracts";
 
 export type RunState = GenerationDetailResponseDto["active_run_state"];
+export type GeneratorLastActionType = "variation" | "upscale" | "refine";
+
+export interface GeneratorLastAction {
+  type: GeneratorLastActionType;
+  label: string;
+  runId: string;
+}
+
+export interface GeneratorUiState {
+  selectedVariantId: string | null;
+  loadingVariantId: string | null;
+  lastAction: GeneratorLastAction | null;
+}
 
 export interface RunStateUi {
   label: string;
@@ -65,6 +78,100 @@ export function getRunStateUi(state: RunState): RunStateUi {
   return stateUiMap[state];
 }
 
+export function createGeneratorUiState(initialSelectedVariantId: string | null): GeneratorUiState {
+  return {
+    selectedVariantId: initialSelectedVariantId,
+    loadingVariantId: null,
+    lastAction: null,
+  };
+}
+
+export function setSelectedVariant(
+  state: GeneratorUiState,
+  selectedVariantId: string | null,
+): GeneratorUiState {
+  return {
+    ...state,
+    selectedVariantId,
+  };
+}
+
+export function setLoadingVariant(
+  state: GeneratorUiState,
+  loadingVariantId: string | null,
+): GeneratorUiState {
+  return {
+    ...state,
+    loadingVariantId,
+  };
+}
+
+export function setLastAction(
+  state: GeneratorUiState,
+  lastAction: GeneratorLastAction | null,
+): GeneratorUiState {
+  return {
+    ...state,
+    lastAction,
+  };
+}
+
+export function getLoadingExperienceMessage(detail: {
+  active_run_state: GenerationDetailResponseDto["active_run_state"];
+  passes: GenerationDetailResponseDto["passes"];
+}): string | null {
+  if (isTerminalRunState(detail.active_run_state)) {
+    return null;
+  }
+
+  if (detail.active_run_state === "queued") {
+    return "Sırada bekliyor, işlem kaydı worker tarafından alınacak.";
+  }
+
+  if (detail.active_run_state === "analyzing") {
+    return "AI düşünüyor: metin niyeti ve duygusal katman çözülüyor.";
+  }
+
+  if (detail.active_run_state === "planning") {
+    return "Sahne kuruluyor...";
+  }
+
+  if (detail.active_run_state === "refining") {
+    return "Önceki sonuç korunuyor, yeni yaratıcı yön hazırlanıyor...";
+  }
+
+  if (detail.active_run_state !== "generating") {
+    return "Görsel üretim akışı devam ediyor...";
+  }
+
+  const activePass = detail.passes
+    .slice()
+    .sort((a, b) => a.pass_index - b.pass_index)
+    .find((pass) => pass.status === "running") ??
+    detail.passes
+      .slice()
+      .sort((a, b) => a.pass_index - b.pass_index)
+      .find((pass) => pass.status === "queued");
+
+  if (activePass?.pass_type === "concept") {
+    return "Sahne kuruluyor...";
+  }
+
+  if (activePass?.pass_type === "composition") {
+    return "Kadraj ve perspektif ayarlanıyor...";
+  }
+
+  if (activePass?.pass_type === "detail") {
+    return "Detaylar işleniyor...";
+  }
+
+  if (activePass?.pass_type === "enhancement") {
+    return "Son dokunuşlar yapılıyor...";
+  }
+
+  return "AI düşünüyor ve görüntüleri finalize ediyor...";
+}
+
 export function getGenerationTerminalMessage(detail: GenerationDetailResponseDto): string | null {
   if (detail.active_run_state === "completed") {
     return "Üretim tamamlandı.";
@@ -87,4 +194,14 @@ export function getGenerationTerminalMessage(detail: GenerationDetailResponseDto
   }
 
   return null;
+}
+
+function isTerminalRunState(state: RunState): boolean {
+  return (
+    state === "completed" ||
+    state === "partially_completed" ||
+    state === "failed" ||
+    state === "blocked" ||
+    state === "refunded"
+  );
 }

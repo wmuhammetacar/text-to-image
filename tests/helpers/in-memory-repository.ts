@@ -1,25 +1,37 @@
 import { randomUUID } from "node:crypto";
 import type {
   CreateAnalysisArtifactsInput,
+  CreateGenerationPassInput,
   CreateInitialRunTxInput,
   CreateInitialRunTxResult,
   CreateRefineRunTxInput,
   CreateRefineRunTxResult,
+  CreateVariationRunTxInput,
+  CreateVariationRunTxResult,
   GenerationHistoryPage,
   GenerationHistoryRow,
+  PublicGalleryPage,
+  PublicGenerationAggregate,
   Repository,
   RepositoryTx,
   RunDetailAggregate,
   RunExecutionContext,
+  UserSegment,
 } from "@vi/application";
 import type {
+  CreativeDirection,
+  EmotionAnalysis,
   Generation,
+  GenerationPass,
   GenerationRun,
   ImageVariant,
   Job,
   ModerationEvent,
+  UserIntent,
+  VariationType,
+  VisualPlan,
 } from "@vi/domain";
-import { canTransitionJob, canTransitionRun } from "@vi/domain";
+import { canTransitionGenerationPass, canTransitionJob, canTransitionRun } from "@vi/domain";
 
 interface StoredGenerationRequest {
   id: string;
@@ -40,6 +52,25 @@ interface StoredRefinementInstruction {
   basedOnRunId: string | null;
   instructionText: string;
   controlsDeltaJson: Record<string, unknown>;
+  requestedImageCount: number;
+  idempotencyKey: string;
+  createdAt: Date;
+}
+
+interface StoredVariationRequest {
+  id: string;
+  generationId: string;
+  runId: string;
+  userId: string;
+  baseVariantId: string;
+  variationType: VariationType;
+  variationParametersJson: Record<string, unknown>;
+  remixSourceType: "public_generation" | null;
+  remixSourceGenerationId: string | null;
+  remixSourceVariantId: string | null;
+  remixDepth: number;
+  rootPublicGenerationId: string | null;
+  rootCreatorId: string | null;
   requestedImageCount: number;
   idempotencyKey: string;
   createdAt: Date;
@@ -89,18 +120,32 @@ function decodeCursor(cursor: string): { createdAt: Date; generationId: string }
   };
 }
 
+function createShareSlug(): string {
+  return randomUUID().replace(/-/g, "").slice(0, 16).toLowerCase();
+}
+
 export class InMemoryRepository implements Repository, RepositoryTx {
+  private readonly displayNameByUser = new Map<string, string>();
+  private readonly profileHandleByUser = new Map<string, string>();
+  private readonly segmentByUser = new Map<string, UserSegment>();
   private readonly generations = new Map<string, Generation>();
   private readonly generationRequests = new Map<string, StoredGenerationRequest>();
   private readonly generationRequestsByIdempotency = new Map<string, string>();
   private readonly refinementInstructions = new Map<string, StoredRefinementInstruction>();
   private readonly refinementByIdempotency = new Map<string, string>();
+  private readonly variationRequests = new Map<string, StoredVariationRequest>();
+  private readonly variationByIdempotency = new Map<string, string>();
   private readonly runs = new Map<string, GenerationRun>();
   private readonly jobs = new Map<string, Job>();
   private readonly jobsByRun = new Map<string, string>();
   private readonly variants = new Map<string, ImageVariant>();
   private readonly variantByRunIndex = new Map<string, string>();
   private readonly moderationEvents = new Map<string, ModerationEvent>();
+  private readonly userIntentsByRun = new Map<string, UserIntent>();
+  private readonly emotionAnalysesByRun = new Map<string, EmotionAnalysis>();
+  private readonly creativeDirectionsByRun = new Map<string, CreativeDirection[]>();
+  private readonly visualPlansByRun = new Map<string, VisualPlan>();
+  private readonly generationPassesByRun = new Map<string, GenerationPass[]>();
   private readonly creditAccounts = new Map<string, CreditAccount>();
   private readonly creditAccountsByUser = new Map<string, string>();
   private readonly ledger: CreditLedgerEntry[] = [];
@@ -113,7 +158,11 @@ export class InMemoryRepository implements Repository, RepositoryTx {
     to: GenerationRun["pipelineState"];
   }> = [];
 
-  public seedUser(userId: string, balance = 100): void {
+  public seedUser(
+    userId: string,
+    balance = 100,
+    segment: UserSegment = "b2c",
+  ): void {
     const accountId = randomUUID();
     this.creditAccounts.set(accountId, {
       id: accountId,
@@ -121,6 +170,13 @@ export class InMemoryRepository implements Repository, RepositoryTx {
       balance,
     });
     this.creditAccountsByUser.set(userId, accountId);
+    if (!this.displayNameByUser.has(userId)) {
+      this.displayNameByUser.set(userId, `Creator-${userId.slice(0, 6)}`);
+    }
+    if (!this.profileHandleByUser.has(userId)) {
+      this.profileHandleByUser.set(userId, `creator_${userId.slice(0, 8).toLowerCase()}`);
+    }
+    this.segmentByUser.set(userId, segment);
   }
 
   public getRun(runId: string): GenerationRun | null {
@@ -152,8 +208,33 @@ export class InMemoryRepository implements Repository, RepositoryTx {
     );
   }
 
+  public getPassesByRun(runId: string): GenerationPass[] {
+    return this.generationPassesByRun.get(runId)?.map((entry) => ({ ...entry })) ?? [];
+  }
+
   public withTransaction<T>(callback: (tx: RepositoryTx) => Promise<T>): Promise<T> {
     return callback(this);
+  }
+
+  public async createGenerationRoot(userId: string): Promise<{ generationId: string }> {
+    const now = new Date();
+    const generationId = randomUUID();
+
+    this.generations.set(generationId, {
+      id: generationId,
+      userId,
+      state: "active",
+      refundState: "none",
+      visibility: "private",
+      shareSlug: createShareSlug(),
+      publishedAt: null,
+      featuredVariantId: null,
+      activeRunId: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return { generationId };
   }
 
   public async createInitialRunBundle(
@@ -169,6 +250,10 @@ export class InMemoryRepository implements Repository, RepositoryTx {
       userId: input.userId,
       state: "active",
       refundState: "none",
+      visibility: "private",
+      shareSlug: createShareSlug(),
+      publishedAt: null,
+      featuredVariantId: null,
       activeRunId: runId,
       createdAt: now,
       updatedAt: now,
@@ -395,6 +480,224 @@ export class InMemoryRepository implements Repository, RepositoryTx {
     return { runId };
   }
 
+  public async createVariationRunBundle(
+    input: CreateVariationRunTxInput,
+  ): Promise<CreateVariationRunTxResult> {
+    const generation = this.generations.get(input.generationId);
+    if (generation === undefined || generation.userId !== input.userId) {
+      throw new Error("GENERATION_OWNERSHIP_VIOLATION");
+    }
+
+    const baseVariant = this.variants.get(input.baseVariantId);
+    if (
+      baseVariant === undefined ||
+      baseVariant.generationId !== input.sourceGenerationId ||
+      (!input.allowForeignBaseVariant && baseVariant.userId !== input.userId)
+    ) {
+      throw new Error("BASE_VARIANT_NOT_FOUND_OR_OWNERSHIP_VIOLATION");
+    }
+
+    if (input.remixSourceType === "public_generation") {
+      const remixGenerationId = input.remixSourceGenerationId ?? null;
+      if (remixGenerationId === null) {
+        throw new Error("PUBLIC_REMIX_SOURCE_GENERATION_REQUIRED");
+      }
+
+      const remixGeneration = this.generations.get(remixGenerationId);
+      if (
+        remixGeneration === undefined ||
+        (remixGeneration.visibility !== "public" && remixGeneration.visibility !== "unlisted")
+      ) {
+        throw new Error("PUBLIC_REMIX_SOURCE_NOT_ALLOWED");
+      }
+
+      if (input.remixSourceVariantId !== null && input.remixSourceVariantId !== input.baseVariantId) {
+        throw new Error("PUBLIC_REMIX_SOURCE_VARIANT_MISMATCH");
+      }
+    }
+
+    const now = new Date();
+    const refinementId = randomUUID();
+    const runId = randomUUID();
+    const variationRequestId = randomUUID();
+
+    const runNumber =
+      this.getRunsByGeneration(input.generationId).reduce((max, run) => Math.max(max, run.runNumber), 0) + 1;
+
+    const parentVariation = [...this.variationRequests.values()].find(
+      (entry) => entry.runId === baseVariant.runId,
+    ) ?? null;
+
+    let remixDepth = 0;
+    let rootPublicGenerationId: string | null = null;
+    let rootCreatorId: string | null = null;
+
+    if (parentVariation !== null && parentVariation.rootPublicGenerationId !== null) {
+      remixDepth = parentVariation.remixDepth + 1;
+      rootPublicGenerationId = parentVariation.rootPublicGenerationId;
+      rootCreatorId = parentVariation.rootCreatorId;
+    }
+
+    if (input.remixSourceType === "public_generation") {
+      const remixGenerationId = input.remixSourceGenerationId!;
+      const remixGeneration = this.generations.get(remixGenerationId)!;
+      const sourceVariation = [...this.variationRequests.values()]
+        .filter((entry) => entry.generationId === remixGenerationId)
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0] ?? null;
+
+      if (sourceVariation !== null && sourceVariation.rootPublicGenerationId !== null) {
+        remixDepth = sourceVariation.remixDepth + 1;
+        rootPublicGenerationId = sourceVariation.rootPublicGenerationId;
+        rootCreatorId = sourceVariation.rootCreatorId ?? remixGeneration.userId;
+      } else {
+        remixDepth = 1;
+        rootPublicGenerationId = remixGenerationId;
+        rootCreatorId = remixGeneration.userId;
+      }
+    }
+
+    this.refinementInstructions.set(refinementId, {
+      id: refinementId,
+      generationId: input.generationId,
+      userId: input.userId,
+      basedOnRunId: baseVariant.runId,
+      instructionText: input.instructionText,
+      controlsDeltaJson: input.variationParametersJson,
+      requestedImageCount: input.requestedImageCount,
+      idempotencyKey: `variation:${input.idempotencyKey}`,
+      createdAt: now,
+    });
+
+    this.refinementByIdempotency.set(`${input.userId}:variation:${input.idempotencyKey}`, refinementId);
+
+    this.runs.set(runId, {
+      id: runId,
+      generationId: input.generationId,
+      userId: input.userId,
+      generationRequestId: null,
+      refinementInstructionId: refinementId,
+      runNumber,
+      runSource: "refine",
+      pipelineState: "queued",
+      requestedImageCount: input.requestedImageCount,
+      correlationId: input.correlationId,
+      attemptCount: 1,
+      retryCount: 0,
+      maxRetryCount: 3,
+      nextRetryAt: null,
+      startedAt: null,
+      completedAt: null,
+      terminalReasonCode: null,
+      terminalReasonMessage: null,
+      refundAmount: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    this.variationRequests.set(variationRequestId, {
+      id: variationRequestId,
+      generationId: input.generationId,
+      runId,
+      userId: input.userId,
+      baseVariantId: input.baseVariantId,
+      variationType: input.variationType,
+      variationParametersJson: input.variationParametersJson,
+      remixSourceType: input.remixSourceType ?? null,
+      remixSourceGenerationId: input.remixSourceGenerationId ?? null,
+      remixSourceVariantId: input.remixSourceVariantId ?? null,
+      remixDepth,
+      rootPublicGenerationId,
+      rootCreatorId,
+      requestedImageCount: input.requestedImageCount,
+      idempotencyKey: input.idempotencyKey,
+      createdAt: now,
+    });
+    this.variationByIdempotency.set(`${input.userId}:${input.idempotencyKey}`, variationRequestId);
+
+    const accountId = this.creditAccountsByUser.get(input.userId);
+    if (accountId === undefined) {
+      throw new Error("CREDIT_ACCOUNT_NOT_FOUND");
+    }
+
+    const account = this.creditAccounts.get(accountId)!;
+    account.balance += input.debitAmount;
+
+    const debit: CreditLedgerEntry = {
+      id: randomUUID(),
+      userId: input.userId,
+      creditAccountId: accountId,
+      entryType: "debit",
+      reason: "generation_run_debit",
+      amount: input.debitAmount,
+      generationRunId: runId,
+      idempotencyKey: `debit:${runId}`,
+      createdAt: now,
+    };
+
+    this.ledger.push(debit);
+    this.ledgerByIdempotency.add(debit.idempotencyKey);
+
+    const job: Job = {
+      id: randomUUID(),
+      runId,
+      queueState: "queued",
+      correlationId: input.correlationId,
+      leasedAt: null,
+      leaseExpiresAt: null,
+      retryCount: 0,
+      maxRetryCount: 3,
+      nextRetryAt: null,
+      completedAt: null,
+      failedAt: null,
+      cancelledAt: null,
+      deadLetteredAt: null,
+      lastErrorCode: null,
+      lastErrorMessage: null,
+      payloadJson: {
+        source: "variation",
+        variation_type: input.variationType,
+        base_variant_id: input.baseVariantId,
+        remix_source_type: input.remixSourceType ?? null,
+        remix_source_generation_id: input.remixSourceGenerationId ?? null,
+        remix_source_variant_id: input.remixSourceVariantId ?? null,
+        remix_depth: remixDepth,
+        root_public_generation_id: rootPublicGenerationId,
+        root_creator_id: rootCreatorId,
+      },
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.jobs.set(job.id, job);
+    this.jobsByRun.set(runId, job.id);
+
+    await this.createModerationEvent({
+      generationId: input.generationId,
+      runId,
+      imageVariantId: null,
+      userId: input.userId,
+      stage: "input_moderation",
+      decision: input.inputModerationDecision,
+      policyCode: input.inputModerationPolicyCode,
+      message: input.inputModerationMessage,
+      detailsJson: {
+        source: "variation_generation",
+        variation_type: input.variationType,
+        remix_source_type: input.remixSourceType ?? null,
+        remix_source_generation_id: input.remixSourceGenerationId ?? null,
+        remix_source_variant_id: input.remixSourceVariantId ?? null,
+        remix_depth: remixDepth,
+        root_public_generation_id: rootPublicGenerationId,
+        root_creator_id: rootCreatorId,
+      },
+    });
+
+    return {
+      variationRequestId,
+      runId,
+    };
+  }
+
   public async updateGenerationActiveRun(generationId: string, runId: string): Promise<void> {
     const generation = this.generations.get(generationId);
     if (generation === undefined) {
@@ -514,8 +817,178 @@ export class InMemoryRepository implements Repository, RepositoryTx {
     return event;
   }
 
-  public async createAnalysisArtifacts(_input: CreateAnalysisArtifactsInput): Promise<void> {
-    return;
+  public async createAnalysisArtifacts(input: CreateAnalysisArtifactsInput): Promise<void> {
+    const now = new Date();
+
+    const userIntent: UserIntent = {
+      id: randomUUID(),
+      generationId: input.generationId,
+      runId: input.runId,
+      userId: input.userId,
+      intentJson: input.userIntent.intentJson,
+      modelName: input.userIntent.modelName,
+      confidence: input.userIntent.confidence,
+      createdAt: now,
+    };
+
+    const emotionAnalysis: EmotionAnalysis = {
+      id: randomUUID(),
+      generationId: input.generationId,
+      runId: input.runId,
+      userId: input.userId,
+      analysisJson: input.emotionAnalysis.analysisJson,
+      modelName: input.emotionAnalysis.modelName,
+      createdAt: now,
+    };
+
+    const creativeDirections: CreativeDirection[] = input.creativeDirections
+      .slice()
+      .sort((a, b) => a.directionIndex - b.directionIndex)
+      .map((direction) => ({
+        id: randomUUID(),
+        generationId: input.generationId,
+        runId: input.runId,
+        userId: input.userId,
+        directionIndex: direction.directionIndex,
+        directionTitle: direction.directionTitle,
+        directionJson: direction.directionJson,
+        createdAt: now,
+      }));
+
+    const selectedCreativeDirection =
+      input.visualPlan.selectedCreativeDirectionIndex === null
+        ? null
+        : creativeDirections.find(
+          (direction) => direction.directionIndex === input.visualPlan.selectedCreativeDirectionIndex,
+        ) ?? null;
+
+    const visualPlan: VisualPlan = {
+      id: randomUUID(),
+      generationId: input.generationId,
+      runId: input.runId,
+      userId: input.userId,
+      selectedCreativeDirectionId: selectedCreativeDirection?.id ?? null,
+      planJson: input.visualPlan.planJson,
+      explainabilityJson: input.visualPlan.explainabilityJson,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.userIntentsByRun.set(input.runId, userIntent);
+    this.emotionAnalysesByRun.set(input.runId, emotionAnalysis);
+    this.creativeDirectionsByRun.set(input.runId, creativeDirections);
+    this.visualPlansByRun.set(input.runId, visualPlan);
+  }
+
+  public async updateVisualPlanExplainabilityByRun(params: {
+    runId: string;
+    explainabilityJson: VisualPlan["explainabilityJson"];
+  }): Promise<void> {
+    const visualPlan = this.visualPlansByRun.get(params.runId);
+    if (visualPlan === undefined) {
+      throw new Error("VISUAL_PLAN_NOT_FOUND");
+    }
+    visualPlan.explainabilityJson = params.explainabilityJson;
+    visualPlan.updatedAt = new Date();
+    this.visualPlansByRun.set(params.runId, visualPlan);
+  }
+
+  public async createGenerationPass(
+    input: CreateGenerationPassInput,
+  ): Promise<GenerationPass> {
+    const now = new Date();
+    const existing = this.generationPassesByRun.get(input.runId) ?? [];
+    const foundIndex = existing.findIndex((entry) => entry.passType === input.passType);
+
+    const pass: GenerationPass = {
+      id: foundIndex >= 0 ? existing[foundIndex]!.id : randomUUID(),
+      generationId: input.generationId,
+      runId: input.runId,
+      userId: input.userId,
+      passType: input.passType,
+      passIndex: input.passIndex,
+      status: input.status,
+      inputArtifactPaths: [...input.inputArtifactPaths],
+      outputArtifactPaths: [...input.outputArtifactPaths],
+      summary: input.summary,
+      metadataJson: input.metadataJson,
+      errorCode: input.errorCode ?? null,
+      errorMessage: input.errorMessage ?? null,
+      startedAt: input.startedAt ?? null,
+      completedAt: input.completedAt ?? null,
+      createdAt: foundIndex >= 0 ? existing[foundIndex]!.createdAt : now,
+      updatedAt: now,
+    };
+
+    if (foundIndex >= 0) {
+      existing[foundIndex] = pass;
+    } else {
+      existing.push(pass);
+      existing.sort((a, b) => a.passIndex - b.passIndex);
+    }
+    this.generationPassesByRun.set(input.runId, existing);
+    return { ...pass };
+  }
+
+  public async updateGenerationPass(params: {
+    passId: string;
+    from: GenerationPass["status"];
+    to: GenerationPass["status"];
+    inputArtifactPaths?: string[];
+    outputArtifactPaths?: string[];
+    summary?: string | null;
+    metadataJson?: Record<string, unknown>;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+    setStartedAt?: boolean;
+    setCompletedAt?: boolean;
+  }): Promise<GenerationPass> {
+    if (!canTransitionGenerationPass(params.from, params.to)) {
+      throw new Error(`ILLEGAL_GENERATION_PASS_TRANSITION:${params.from}->${params.to}`);
+    }
+
+    for (const [runId, passes] of this.generationPassesByRun.entries()) {
+      const index = passes.findIndex((entry) => entry.id === params.passId);
+      if (index < 0) {
+        continue;
+      }
+
+      const existing = passes[index]!;
+      if (existing.status !== params.from) {
+        throw new Error("GENERATION_PASS_TRANSITION_CONFLICT");
+      }
+
+      const now = new Date();
+      const next: GenerationPass = {
+        ...existing,
+        status: params.to,
+        inputArtifactPaths: params.inputArtifactPaths ?? existing.inputArtifactPaths,
+        outputArtifactPaths: params.outputArtifactPaths ?? existing.outputArtifactPaths,
+        summary: Object.prototype.hasOwnProperty.call(params, "summary")
+          ? params.summary ?? null
+          : existing.summary,
+        metadataJson: params.metadataJson ?? existing.metadataJson,
+        errorCode: Object.prototype.hasOwnProperty.call(params, "errorCode")
+          ? params.errorCode ?? null
+          : existing.errorCode,
+        errorMessage: Object.prototype.hasOwnProperty.call(params, "errorMessage")
+          ? params.errorMessage ?? null
+          : existing.errorMessage,
+        startedAt: params.setStartedAt === true
+          ? existing.startedAt ?? now
+          : existing.startedAt,
+        completedAt: params.setCompletedAt === true
+          ? now
+          : existing.completedAt,
+        updatedAt: now,
+      };
+
+      passes[index] = next;
+      this.generationPassesByRun.set(runId, passes);
+      return { ...next };
+    }
+
+    throw new Error("GENERATION_PASS_NOT_FOUND");
   }
 
   public async createProviderPayload(params: {
@@ -550,6 +1023,11 @@ export class InMemoryRepository implements Repository, RepositoryTx {
       if (existingId !== undefined) {
         const current = this.variants.get(existingId)!;
         current.directionIndex = input.directionIndex;
+        current.parentVariantId = input.parentVariantId;
+        current.rootGenerationId = input.rootGenerationId;
+        current.variationType = input.variationType;
+        current.branchDepth = input.branchDepth;
+        current.isUpscaled = input.isUpscaled;
         current.status = input.status;
         current.storageBucket = input.storageBucket;
         current.storagePath = input.storagePath;
@@ -570,6 +1048,11 @@ export class InMemoryRepository implements Repository, RepositoryTx {
         userId: input.userId,
         variantIndex: input.variantIndex,
         directionIndex: input.directionIndex,
+        parentVariantId: input.parentVariantId,
+        rootGenerationId: input.rootGenerationId,
+        variationType: input.variationType,
+        branchDepth: input.branchDepth,
+        isUpscaled: input.isUpscaled,
         status: input.status,
         storageBucket: input.storageBucket,
         storagePath: input.storagePath,
@@ -727,6 +1210,73 @@ export class InMemoryRepository implements Repository, RepositoryTx {
     };
   }
 
+  public async findVariationRequestByIdempotency(
+    userId: string,
+    idempotencyKey: string,
+  ): Promise<
+    | {
+        variationRequestId: string;
+        generationId: string;
+        runId: string;
+        baseVariantId: string;
+        variationType: VariationType;
+        variationParametersJson: Record<string, unknown>;
+        remixSourceType: "public_generation" | null;
+        remixSourceGenerationId: string | null;
+        remixSourceVariantId: string | null;
+        remixDepth: number;
+        rootPublicGenerationId: string | null;
+        rootCreatorId: string | null;
+        requestedImageCount: number;
+      }
+    | null
+  > {
+    const variationId = this.variationByIdempotency.get(`${userId}:${idempotencyKey}`);
+    if (variationId === undefined) {
+      return null;
+    }
+
+    const variation = this.variationRequests.get(variationId);
+    if (variation === undefined) {
+      return null;
+    }
+
+    return {
+      variationRequestId: variation.id,
+      generationId: variation.generationId,
+      runId: variation.runId,
+      baseVariantId: variation.baseVariantId,
+      variationType: variation.variationType,
+      variationParametersJson: variation.variationParametersJson,
+      remixSourceType: variation.remixSourceType,
+      remixSourceGenerationId: variation.remixSourceGenerationId,
+      remixSourceVariantId: variation.remixSourceVariantId,
+      remixDepth: variation.remixDepth,
+      rootPublicGenerationId: variation.rootPublicGenerationId,
+      rootCreatorId: variation.rootCreatorId,
+      requestedImageCount: variation.requestedImageCount,
+    };
+  }
+
+  public async getUserSegment(userId: string): Promise<UserSegment | null> {
+    return this.segmentByUser.get(userId) ?? null;
+  }
+
+  public async getUserDebitUsageSince(params: {
+    userId: string;
+    since: Date;
+  }): Promise<number> {
+    return this.ledger
+      .filter(
+        (entry) =>
+          entry.userId === params.userId &&
+          entry.reason === "generation_run_debit" &&
+          entry.amount < 0 &&
+          entry.createdAt >= params.since,
+      )
+      .reduce((sum, entry) => sum + Math.abs(entry.amount), 0);
+  }
+
   public async getCreditBalance(
     userId: string,
   ): Promise<{ creditAccountId: string; balance: number } | null> {
@@ -744,6 +1294,41 @@ export class InMemoryRepository implements Repository, RepositoryTx {
       creditAccountId: account.id,
       balance: account.balance,
     };
+  }
+
+  public async getImageVariantForUser(
+    imageVariantId: string,
+    userId: string,
+  ): Promise<ImageVariant | null> {
+    const variant = this.variants.get(imageVariantId);
+    if (variant === undefined || variant.userId !== userId) {
+      return null;
+    }
+    return { ...variant };
+  }
+
+  public async getPublicVariantForRemix(params: {
+    sourceGenerationId: string;
+    sourceVariantId: string;
+  }): Promise<ImageVariant | null> {
+    const generation = this.generations.get(params.sourceGenerationId);
+    if (
+      generation === undefined ||
+      (generation.visibility !== "public" && generation.visibility !== "unlisted")
+    ) {
+      return null;
+    }
+
+    const variant = this.variants.get(params.sourceVariantId);
+    if (
+      variant === undefined ||
+      variant.generationId !== params.sourceGenerationId ||
+      variant.status !== "completed"
+    ) {
+      return null;
+    }
+
+    return { ...variant };
   }
 
   public async getGenerationDetailForUser(
@@ -767,11 +1352,32 @@ export class InMemoryRepository implements Repository, RepositoryTx {
       .filter((variant) => variant.generationId === generationId && variant.userId === userId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
+    const artifactRunId = generation.activeRunId ?? runs[0]?.id ?? null;
+    const userIntent = artifactRunId !== null
+      ? this.userIntentsByRun.get(artifactRunId) ?? null
+      : null;
+    const emotionAnalysis = artifactRunId !== null
+      ? this.emotionAnalysesByRun.get(artifactRunId) ?? null
+      : null;
+    const creativeDirections = artifactRunId !== null
+      ? this.creativeDirectionsByRun.get(artifactRunId) ?? []
+      : [];
+    const visualPlan = artifactRunId !== null
+      ? this.visualPlansByRun.get(artifactRunId) ?? null
+      : null;
+
     return {
       generation,
       activeRun,
       runs,
+      passes: artifactRunId !== null
+        ? this.generationPassesByRun.get(artifactRunId) ?? []
+        : [],
       variants,
+      userIntent,
+      emotionAnalysis,
+      creativeDirections,
+      visualPlan,
     };
   }
 
@@ -795,11 +1401,104 @@ export class InMemoryRepository implements Repository, RepositoryTx {
       .filter((variant) => variant.generationId === generationId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
+    const artifactRunId = generation.activeRunId ?? runs[0]?.id ?? null;
+    const userIntent = artifactRunId !== null
+      ? this.userIntentsByRun.get(artifactRunId) ?? null
+      : null;
+    const emotionAnalysis = artifactRunId !== null
+      ? this.emotionAnalysesByRun.get(artifactRunId) ?? null
+      : null;
+    const creativeDirections = artifactRunId !== null
+      ? this.creativeDirectionsByRun.get(artifactRunId) ?? []
+      : [];
+    const visualPlan = artifactRunId !== null
+      ? this.visualPlansByRun.get(artifactRunId) ?? null
+      : null;
+
     return {
       generation,
       activeRun,
       runs,
+      passes: artifactRunId !== null
+        ? this.generationPassesByRun.get(artifactRunId) ?? []
+        : [],
       variants,
+      userIntent,
+      emotionAnalysis,
+      creativeDirections,
+      visualPlan,
+    };
+  }
+
+  public async getPublicGenerationByShareSlug(params: {
+    shareSlug: string;
+    includeUnlisted: boolean;
+  }): Promise<PublicGenerationAggregate | null> {
+    const generation = [...this.generations.values()].find((entry) =>
+      entry.shareSlug === params.shareSlug &&
+      (entry.visibility === "public" || (params.includeUnlisted && entry.visibility === "unlisted"))
+    );
+    if (generation === undefined) {
+      return null;
+    }
+
+    const aggregate = await this.getGenerationDetailForService(generation.id);
+    if (aggregate === null) {
+      return null;
+    }
+
+    const firstVariation = [...this.variationRequests.values()]
+      .filter((entry) => entry.generationId === generation.id)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0] ?? null;
+
+    const derivedPublicGenerationIds = [...new Set(
+      [...this.variationRequests.values()]
+        .filter((entry) => entry.remixSourceGenerationId === generation.id)
+        .filter((entry) => {
+          const childGeneration = this.generations.get(entry.generationId);
+          return childGeneration !== undefined &&
+            (childGeneration.visibility === "public" || childGeneration.visibility === "unlisted");
+        })
+        .map((entry) => entry.generationId),
+    )];
+
+    const branchGenerationIds = new Set(
+      [...this.variationRequests.values()]
+        .filter((entry) => entry.rootPublicGenerationId === generation.id)
+        .filter((entry) => {
+          const childGeneration = this.generations.get(entry.generationId);
+          return childGeneration !== undefined &&
+            (childGeneration.visibility === "public" || childGeneration.visibility === "unlisted");
+        })
+        .map((entry) => entry.generationId),
+    );
+
+    const creatorPublicGenerationCount = [...this.generations.values()].filter(
+      (entry) => entry.userId === generation.userId && entry.visibility === "public",
+    ).length;
+    const totalPublicVariants = aggregate.variants.filter((variant) => variant.status === "completed").length;
+
+    return {
+      ...aggregate,
+      variants: aggregate.variants.filter((variant) => variant.status === "completed"),
+      creatorDisplayName: this.displayNameByUser.get(generation.userId) ?? "Creator",
+      creatorProfileHandle: this.profileHandleByUser.get(generation.userId) ?? `creator_${generation.userId.slice(0, 8)}`,
+      creatorUserId: generation.userId,
+      socialProof: {
+        remixCount: derivedPublicGenerationIds.length,
+        branchCount: branchGenerationIds.size,
+        totalPublicVariants,
+        creatorPublicGenerationCount,
+      },
+      lineage: {
+        remixDepth: firstVariation?.remixDepth ?? 0,
+        rootPublicGenerationId: firstVariation?.rootPublicGenerationId ?? null,
+        rootCreatorId: firstVariation?.rootCreatorId ?? null,
+        remixSourceGenerationId: firstVariation?.remixSourceGenerationId ?? null,
+        remixSourceVariantId: firstVariation?.remixSourceVariantId ?? null,
+        derivedPublicGenerationCount: derivedPublicGenerationIds.length,
+        derivedPublicGenerationIds,
+      },
     };
   }
 
@@ -861,6 +1560,158 @@ export class InMemoryRepository implements Repository, RepositoryTx {
     };
   }
 
+  public async listPublicGallery(params: {
+    limit: number;
+    cursor: string | null;
+  }): Promise<PublicGalleryPage> {
+    let records = [...this.generations.values()]
+      .filter((generation) => generation.visibility === "public" && generation.publishedAt !== null)
+      .sort((a, b) => {
+        const ts = (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0);
+        if (ts !== 0) {
+          return ts;
+        }
+        return b.id.localeCompare(a.id);
+      });
+
+    if (params.cursor !== null) {
+      const decoded = decodeCursor(params.cursor);
+      records = records.filter((generation) => {
+        const publishedAt = generation.publishedAt;
+        if (publishedAt === null) {
+          return false;
+        }
+        if (publishedAt.getTime() < decoded.createdAt.getTime()) {
+          return true;
+        }
+        if (publishedAt.getTime() > decoded.createdAt.getTime()) {
+          return false;
+        }
+        return generation.id < decoded.generationId;
+      });
+    }
+
+    const sliced = records.slice(0, params.limit + 1);
+    const hasMore = sliced.length > params.limit;
+    const page = hasMore ? sliced.slice(0, params.limit) : sliced;
+
+    const items = page.map((generation) => {
+      const runs = this.getRunsByGeneration(generation.id);
+      const artifactRunId = generation.activeRunId ?? runs[0]?.id ?? null;
+      const visualPlan = artifactRunId !== null
+        ? this.visualPlansByRun.get(artifactRunId) ?? null
+        : null;
+      const selectedDirection = artifactRunId !== null
+        ? (this.creativeDirectionsByRun.get(artifactRunId) ?? []).find(
+          (direction) => direction.id === visualPlan?.selectedCreativeDirectionId,
+        ) ?? null
+        : null;
+      const allVariants = [...this.variants.values()]
+        .filter((variant) => variant.generationId === generation.id && variant.status === "completed")
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      const featuredVariant = generation.featuredVariantId === null
+        ? null
+        : allVariants.find((variant) => variant.id === generation.featuredVariantId) ?? null;
+      const latestVariant = allVariants[0] ?? null;
+      const styleTags = selectedDirection?.directionJson.styleTags ?? [];
+      const moodFromDirection = selectedDirection?.directionJson.colorPalette.mood;
+      const moodFromPlan = visualPlan?.planJson.colorStrategy.mood;
+      const remixGenerationIds = new Set(
+        [...this.variationRequests.values()]
+          .filter((entry) => entry.remixSourceGenerationId === generation.id)
+          .filter((entry) => {
+            const childGeneration = this.generations.get(entry.generationId);
+            return childGeneration !== undefined &&
+              (childGeneration.visibility === "public" || childGeneration.visibility === "unlisted");
+          })
+          .map((entry) => entry.generationId),
+      );
+      const branchGenerationIds = new Set(
+        [...this.variationRequests.values()]
+          .filter((entry) => entry.rootPublicGenerationId === generation.id)
+          .filter((entry) => {
+            const childGeneration = this.generations.get(entry.generationId);
+            return childGeneration !== undefined &&
+              (childGeneration.visibility === "public" || childGeneration.visibility === "unlisted");
+          })
+          .map((entry) => entry.generationId),
+      );
+      const creatorPublicGenerationCount = [...this.generations.values()].filter(
+        (entry) => entry.userId === generation.userId && entry.visibility === "public",
+      ).length;
+
+      return {
+        generationId: generation.id,
+        shareSlug: generation.shareSlug,
+        visibility: "public" as const,
+        publishedAt: generation.publishedAt ?? generation.createdAt,
+        creatorDisplayName: this.displayNameByUser.get(generation.userId) ?? "Creator",
+        creatorProfileHandle: this.profileHandleByUser.get(generation.userId) ?? `creator_${generation.userId.slice(0, 8)}`,
+        summary:
+          visualPlan?.explainabilityJson.summary ??
+          visualPlan?.planJson.summary ??
+          "Pixora generation",
+        styleTags,
+        moodTags: [moodFromDirection, moodFromPlan].filter(
+          (entry): entry is string => entry !== undefined && entry !== null && entry.length > 0,
+        ),
+        featuredImagePath: (featuredVariant ?? latestVariant)?.storagePath ?? null,
+        totalRuns: runs.length,
+        variationCount: allVariants.filter((variant) => variant.parentVariantId !== null).length,
+        refinementCount: Math.max(runs.length - 1, 0),
+        remixCount: remixGenerationIds.size,
+        branchCount: branchGenerationIds.size,
+        totalPublicVariants: allVariants.length,
+        creatorPublicGenerationCount,
+      };
+    });
+
+    const lastItem = items[items.length - 1];
+
+    return {
+      items,
+      nextCursor:
+        hasMore && lastItem !== undefined
+          ? encodeCursor(lastItem.publishedAt, lastItem.generationId)
+          : null,
+    };
+  }
+
+  public async updateGenerationVisibilityForUser(params: {
+    generationId: string;
+    userId: string;
+    visibility: Generation["visibility"];
+    featuredVariantId: string | null;
+  }): Promise<Generation | null> {
+    const generation = this.generations.get(params.generationId);
+    if (generation === undefined || generation.userId !== params.userId) {
+      return null;
+    }
+
+    if (params.featuredVariantId !== null) {
+      const variant = this.variants.get(params.featuredVariantId);
+      if (
+        variant === undefined ||
+        variant.userId !== params.userId ||
+        variant.generationId !== params.generationId ||
+        variant.status !== "completed"
+      ) {
+        throw new Error("FEATURED_VARIANT_NOT_ALLOWED");
+      }
+    }
+
+    generation.visibility = params.visibility;
+    generation.featuredVariantId = params.featuredVariantId;
+    generation.publishedAt =
+      params.visibility === "private"
+        ? null
+        : generation.publishedAt ?? new Date();
+    generation.updatedAt = new Date();
+
+    this.generations.set(generation.id, generation);
+    return { ...generation };
+  }
+
   public async getRunExecutionContext(runId: string): Promise<RunExecutionContext | null> {
     const run = this.runs.get(runId);
     if (run === undefined) {
@@ -877,17 +1728,40 @@ export class InMemoryRepository implements Repository, RepositoryTx {
         ? this.generationRequests.get(run.generationRequestId) ?? null
         : null;
 
+    const baseRequest = [...this.generationRequests.values()]
+      .filter((entry) => entry.generationId === run.generationId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0] ?? null;
+
     const refinement =
       run.refinementInstructionId !== null
         ? this.refinementInstructions.get(run.refinementInstructionId) ?? null
         : null;
+    const variationRequest = [...this.variationRequests.values()].find(
+      (entry) => entry.runId === run.id,
+    ) ?? null;
+    const baseVariant = variationRequest !== null
+      ? this.variants.get(variationRequest.baseVariantId) ?? null
+      : null;
+    const baseVisualPlan = baseVariant !== null
+      ? this.visualPlansByRun.get(baseVariant.runId)?.planJson ?? null
+      : null;
 
     return {
       generation,
       run,
-      generationRequestSourceText: request?.sourceText ?? null,
-      generationRequestCreativeMode: request?.creativeMode ?? null,
+      generationRequestSourceText: request?.sourceText ?? baseRequest?.sourceText ?? null,
+      generationRequestCreativeMode: request?.creativeMode ?? baseRequest?.creativeMode ?? null,
+      generationRequestControlsJson: request?.controlsJson ?? baseRequest?.controlsJson ?? null,
       refinementInstructionText: refinement?.instructionText ?? null,
+      refinementControlsDeltaJson: refinement?.controlsDeltaJson ?? null,
+      variationType: variationRequest?.variationType ?? null,
+      variationParametersJson: variationRequest?.variationParametersJson ?? null,
+      baseVariantId: variationRequest?.baseVariantId ?? null,
+      baseVariantRunId: baseVariant?.runId ?? null,
+      baseVariantStoragePath: baseVariant?.storagePath ?? null,
+      baseVariantBranchDepth: baseVariant?.branchDepth ?? null,
+      baseVariantVariationType: baseVariant?.variationType ?? null,
+      baseVisualPlan,
     };
   }
 

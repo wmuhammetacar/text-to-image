@@ -36,7 +36,16 @@ Zorunlu degiskenler:
 - `OPENAI_IMAGE_SIZE`
 - `IMAGE_STORAGE_BUCKET`
 - `CREDIT_COST_PER_IMAGE`
+- `MONETIZATION_FREE_DAILY_CREDITS`
+- `MONETIZATION_FREE_MONTHLY_CREDITS`
+- `MONETIZATION_FREE_ALLOW_DIRECTED`
+- `MONETIZATION_FREE_MAX_PASS_COUNT`
+- `MONETIZATION_REFINE_COST_MULTIPLIER`
+- `MONETIZATION_VARIATION_COST_MULTIPLIER`
+- `MONETIZATION_UPSCALE_COST_MULTIPLIER`
+- `MONETIZATION_DIRECTED_MODE_MULTIPLIER`
 - `WORKER_POLL_INTERVAL_MS`
+- `WORKER_MAX_CONCURRENCY`
 - `WORKER_LEASE_SECONDS`
 - `WORKER_MAX_TICKS`
 - `WORKER_MAX_CONSECUTIVE_ERRORS`
@@ -50,6 +59,8 @@ Zorunlu degiskenler:
 - `BILLING_CHECKOUT_CANCEL_PATH`
 - `BILLING_WEBHOOK_TOLERANCE_SECONDS`
 - `BILLING_CREDIT_PACKS_JSON`
+- `PUBLIC_GALLERY_CACHE_TTL_SECONDS`
+- `PUBLIC_GENERATION_CACHE_TTL_SECONDS`
 - `API_RATE_LIMIT_GENERATIONS_PER_MINUTE`
 - `API_RATE_LIMIT_GENERATIONS_IP_PER_MINUTE`
 - `API_RATE_LIMIT_REFINES_PER_MINUTE`
@@ -57,6 +68,7 @@ Zorunlu degiskenler:
 - `API_RATE_LIMIT_BILLING_CHECKOUT_PER_MINUTE`
 - `API_RATE_LIMIT_BILLING_CHECKOUT_IP_PER_MINUTE`
 - `API_RATE_LIMIT_BILLING_WEBHOOK_PER_MINUTE`
+- `API_RATE_LIMIT_BACKEND`
 - `ABUSE_DAILY_CREDIT_SPEND_LIMIT`
 - `ABUSE_GENERATION_RUNS_10M_LIMIT`
 - `ABUSE_REFINE_RUNS_10M_LIMIT`
@@ -66,6 +78,8 @@ Zorunlu degiskenler:
 - `SENTRY_DSN` (opsiyonel ama production icin onerilir)
 - `SENTRY_ENVIRONMENT`
 - `SENTRY_RELEASE` (opsiyonel)
+- `NEXT_PUBLIC_FEATURE_FLAGS_JSON` (opsiyonel)
+- `NEXT_PUBLIC_EXPERIMENTS_JSON` (opsiyonel)
 
 Kurallar:
 - `SUPABASE_SERVICE_ROLE_KEY` sadece server/worker tarafinda kullanilir.
@@ -107,6 +121,11 @@ Migration sirasi zorunludur:
 2. `0002_indexes_constraints.sql`
 3. `0003_rls_policies.sql`
 4. `0004_views_and_projections.sql`
+5. `0005_generation_passes.sql`
+6. `0006_variation_loop.sql`
+7. `0007_public_visibility_gallery.sql`
+8. `0008_remix_creator_graph.sql`
+9. `0009_scale_optimization.sql`
 
 ## 5) Calistirma
 
@@ -139,6 +158,8 @@ MVP UI ekranlari:
 - `Favoriler` (`/favorites`)
 - `Billing` (`/billing`)
 - `Generation detay` (`/generations/:id`)
+- `Public gallery` (`/gallery`)
+- `Share detay` (`/share/:slug`)
 
 ## 6) Test
 
@@ -166,6 +187,7 @@ npm run typecheck
 
 - Uygulama env eksikse fail-fast calisir (`packages/config`).
 - Worker dead-letter akisina sahiptir (`jobs.queue_state=dead_letter`).
+- Worker concurrency kontrolu `WORKER_MAX_CONCURRENCY` ile yonetilir.
 - API route'lari JWT zorunlu auth servisi ile korunur (`apps/web/lib/auth.ts`).
 - User scope ve service scope ayrimi repository katmaninda ayridir.
 - Signed URL sadece runtime'da uretilir, veritabanina yazilmaz.
@@ -184,9 +206,20 @@ npm run typecheck
   - `POST /api/v1/billing/checkout`
   - `POST /api/v1/billing/stripe/webhook`
   - `GET /api/v1/credits`
+- Public/share API endpointleri:
+  - `PATCH /api/v1/generations/:id/visibility`
+  - `GET /api/v1/public/gallery`
+  - `GET /api/v1/public/generations/:slug`
 - Health/ops endpointleri:
   - `GET /api/health`
   - `GET /api/v1/ops/queue` (`x-ops-key` gerektirir)
+- Public discovery cache:
+  - `GET /api/v1/public/gallery` TTL: `PUBLIC_GALLERY_CACHE_TTL_SECONDS`
+  - `GET /api/v1/public/generations/:slug` TTL: `PUBLIC_GENERATION_CACHE_TTL_SECONDS`
+- Monetization policy:
+  - `segment=b2c` kullanicilar free tier kabul edilir.
+  - free tier gunluk/aylik limit asiminda API `INSUFFICIENT_CREDITS` + `paywall_reason` doner.
+  - generation/refine/variation/upscale maliyeti pass sayisi ve action multiplier ile hesaplanir.
 
 ## 8) Launch Dokumanlari
 

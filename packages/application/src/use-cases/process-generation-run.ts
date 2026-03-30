@@ -13,6 +13,9 @@ import type {
   SafetyShapingProvider,
 } from "../ports/providers";
 import type { Repository } from "../ports/repositories";
+import { buildCreativeIntelligence } from "../services/creative-intelligence";
+import { MultiPassGenerationEngine } from "../services/multi-pass-engine";
+import { evaluateOutputVariants } from "../services/output-evaluator";
 import type { ApplyRunRefundUseCase } from "./apply-run-refund";
 
 export interface ProcessGenerationRunInput {
@@ -27,7 +30,14 @@ export interface ProcessGenerationRunResult {
   producedImageCount: number;
 }
 
+export interface ProcessGenerationRunConfig {
+  fastModePassCount?: number;
+  fullModePassCount?: number;
+}
+
 export class ProcessGenerationRunUseCase {
+  private readonly multiPassEngine: MultiPassGenerationEngine;
+
   public constructor(
     private readonly repository: Repository,
     private readonly emotionProvider: EmotionAnalysisProvider,
@@ -35,7 +45,18 @@ export class ProcessGenerationRunUseCase {
     private readonly imageProvider: ImageGenerationProvider,
     private readonly applyRunRefundUseCase: ApplyRunRefundUseCase,
     private readonly logger: Logger,
-  ) {}
+    config: ProcessGenerationRunConfig = {},
+  ) {
+    this.multiPassEngine = new MultiPassGenerationEngine(
+      this.repository,
+      this.imageProvider,
+      this.logger,
+      {
+        fastModePassCount: config.fastModePassCount ?? 2,
+        fullModePassCount: config.fullModePassCount ?? 4,
+      },
+    );
+  }
 
   public async execute(input: ProcessGenerationRunInput): Promise<ProcessGenerationRunResult> {
     const context = await this.repository.getRunExecutionContext(input.runId);
@@ -67,15 +88,19 @@ export class ProcessGenerationRunUseCase {
       },
     );
 
-    const sourceText =
-      context.refinementInstructionText ?? context.generationRequestSourceText ?? "";
+    const sourceText = context.generationRequestSourceText ?? "";
+    const refinementInstruction = context.refinementInstructionText;
+    const effectiveAnalysisText =
+      refinementInstruction !== null && refinementInstruction.trim().length > 0
+        ? `${sourceText}\n\nRefinement instruction: ${refinementInstruction}`
+        : sourceText;
 
     let emotionResult: Awaited<ReturnType<EmotionAnalysisProvider["analyze"]>>;
     try {
       emotionResult = await this.emotionProvider.analyze({
         runId: context.run.id,
         generationId: context.generation.id,
-        text: sourceText,
+        text: effectiveAnalysisText,
       });
     } catch (error) {
       if (error instanceof SafetyHardBlockError) {
@@ -108,6 +133,31 @@ export class ProcessGenerationRunUseCase {
       throw error;
     }
 
+    const creativeIntelligence = buildCreativeIntelligence({
+      sourceText,
+      refinementInstruction,
+      creativeMode: context.generationRequestCreativeMode ?? "balanced",
+      generationControls: context.generationRequestControlsJson,
+      refinementControls: context.refinementControlsDeltaJson,
+      providerIntentJson: emotionResult.userIntent.intentJson,
+      providerEmotionJson: emotionResult.emotionAnalysis.analysisJson,
+      variationContext: context.variationType === null
+        ? undefined
+        : {
+          variationType: context.variationType,
+          variationParameters: context.variationParametersJson ?? {},
+          baseVisualPlan: context.baseVisualPlan,
+          baseVariant: context.baseVariantId === null
+            ? null
+            : {
+              id: context.baseVariantId,
+              branchDepth: context.baseVariantBranchDepth ?? 0,
+              variationType: context.baseVariantVariationType,
+              isUpscaled: context.variationType === "upscale",
+            },
+        },
+    });
+
     await this.repository.withTransaction(async (tx) => {
       await tx.createProviderPayload({
         generationId: context.generation.id,
@@ -124,31 +174,23 @@ export class ProcessGenerationRunUseCase {
         runId: context.run.id,
         userId: context.run.userId,
         userIntent: {
-          intentJson: emotionResult.userIntent.intentJson,
+          intentJson: creativeIntelligence.userIntent,
           modelName: emotionResult.modelName,
           confidence: emotionResult.userIntent.confidence,
         },
         emotionAnalysis: {
-          analysisJson: emotionResult.emotionAnalysis.analysisJson,
+          analysisJson: creativeIntelligence.emotionProfile,
           modelName: emotionResult.modelName,
         },
-        creativeDirections: [1, 2, 3].map((directionIndex) => ({
-          directionIndex,
-          directionTitle: `Direction ${directionIndex}`,
-          directionJson: {
-            source: emotionResult.emotionAnalysis.analysisJson,
-            direction_index: directionIndex,
-          },
+        creativeDirections: creativeIntelligence.creativeDirections.map((direction) => ({
+          directionIndex: direction.directionIndex,
+          directionTitle: direction.title,
+          directionJson: direction.spec,
         })),
         visualPlan: {
-          selectedCreativeDirectionIndex: 1,
-          planJson: {
-            lighting: "cinematic",
-            atmosphere: emotionResult.emotionAnalysis.analysisJson,
-          },
-          explainabilityJson: {
-            derived_from: ["user_intent", "emotion_analysis", "creative_direction"],
-          },
+          selectedCreativeDirectionIndex: creativeIntelligence.selectedDirectionIndex,
+          planJson: creativeIntelligence.visualPlan,
+          explainabilityJson: creativeIntelligence.explainability,
         },
       });
     });
@@ -163,10 +205,8 @@ export class ProcessGenerationRunUseCase {
     const safetyShapeResult = await this.safetyProvider.shapeBeforeGeneration({
       runId: context.run.id,
       generationId: context.generation.id,
-      sourceText,
-      visualPlan: {
-        source: emotionResult.emotionAnalysis.analysisJson,
-      },
+      sourceText: creativeIntelligence.visualPlan.promptExpanded,
+      visualPlan: creativeIntelligence.visualPlan,
     });
 
     await this.repository.withTransaction(async (tx) => {
@@ -234,15 +274,37 @@ export class ProcessGenerationRunUseCase {
       input.requestId,
     );
 
-    let generationResult;
+    let multiPassResult: Awaited<ReturnType<MultiPassGenerationEngine["execute"]>>;
+    const selectedDirection =
+      creativeIntelligence.creativeDirections.find(
+        (direction) => direction.directionIndex === creativeIntelligence.selectedDirectionIndex,
+      ) ?? creativeIntelligence.creativeDirections[0];
+
     try {
-      generationResult = await this.imageProvider.generate({
-        runId: context.run.id,
+      multiPassResult = await this.multiPassEngine.execute({
         generationId: context.generation.id,
+        runId: context.run.id,
+        userId: context.run.userId,
         correlationId: context.run.correlationId,
         requestedImageCount: context.run.requestedImageCount,
-        prompt: safetyShapeResult.shapedText,
         creativeMode: context.generationRequestCreativeMode ?? "balanced",
+        safetyShapedPrompt: safetyShapeResult.shapedText,
+        visualPlan: creativeIntelligence.visualPlan,
+        selectedDirection: selectedDirection === undefined
+          ? null
+          : {
+            directionIndex: selectedDirection.directionIndex,
+            spec: selectedDirection.spec,
+          },
+        variationIntent: context.variationType === null || context.baseVariantId === null
+          ? null
+          : {
+            baseVariantId: context.baseVariantId,
+            variationType: context.variationType,
+            originalPromptReference: context.baseVisualPlan?.promptExpanded ?? null,
+            deltaSummary: `variation=${context.variationType}`,
+          },
+        requestId: input.requestId,
       });
     } catch (error) {
       if (error instanceof RetryablePipelineError) {
@@ -278,18 +340,6 @@ export class ProcessGenerationRunUseCase {
       throw error;
     }
 
-    await this.repository.withTransaction(async (tx) => {
-      await tx.createProviderPayload({
-        generationId: context.generation.id,
-        runId: context.run.id,
-        userId: context.run.userId,
-        providerType: "image_generation",
-        providerName: generationResult.providerName,
-        requestPayloadRedacted: generationResult.providerRequestRedacted,
-        responsePayloadRedacted: generationResult.providerResponseRedacted,
-      });
-    });
-
     const variantInputs = [] as Array<{
       variantIndex: number;
       directionIndex: number | null;
@@ -299,12 +349,17 @@ export class ProcessGenerationRunUseCase {
       mimeType: string;
       width: number;
       height: number;
+      parentVariantId: string | null;
+      rootGenerationId: string | null;
+      variationType: typeof context.variationType;
+      branchDepth: number;
+      isUpscaled: boolean;
       moderationDecision: "allow" | "sanitize" | "soft_block" | "hard_block" | "review";
       moderationReason: string | null;
       moderationPolicyCode: string;
     }>;
 
-    for (const variant of generationResult.variants) {
+    for (const variant of multiPassResult.finalVariants) {
       const outputModeration = await this.safetyProvider.moderateOutput({
         runId: context.run.id,
         generationId: context.generation.id,
@@ -325,6 +380,13 @@ export class ProcessGenerationRunUseCase {
         mimeType: variant.mimeType,
         width: variant.width,
         height: variant.height,
+        parentVariantId: context.baseVariantId,
+        rootGenerationId: context.generation.id,
+        variationType: context.variationType,
+        branchDepth: context.baseVariantBranchDepth === null
+          ? 0
+          : context.baseVariantBranchDepth + 1,
+        isUpscaled: context.variationType === "upscale",
         moderationDecision: outputModeration.decision,
         moderationReason: outputModeration.message,
         moderationPolicyCode: outputModeration.policyCode,
@@ -339,6 +401,11 @@ export class ProcessGenerationRunUseCase {
           userId: context.run.userId,
           variantIndex: variant.variantIndex,
           directionIndex: variant.directionIndex,
+          parentVariantId: variant.parentVariantId,
+          rootGenerationId: variant.rootGenerationId,
+          variationType: variant.variationType,
+          branchDepth: variant.branchDepth,
+          isUpscaled: variant.isUpscaled,
           status: variant.status,
           storageBucket: variant.storageBucket,
           storagePath: variant.storagePath,
@@ -376,6 +443,36 @@ export class ProcessGenerationRunUseCase {
     });
 
     const producedImageCount = persistedVariants.filter((entry) => entry.status === "completed").length;
+    const outputEvaluation = evaluateOutputVariants({
+      variants: persistedVariants.map((variant) => ({
+        imageVariantId: variant.id,
+        variantIndex: variant.variantIndex,
+        directionIndex: variant.directionIndex,
+        status: variant.status,
+        storagePath: variant.storagePath,
+        width: variant.width,
+        height: variant.height,
+        metadata: {},
+      })),
+      visualPlan: creativeIntelligence.visualPlan,
+      selectedDirection: selectedDirection?.spec ?? null,
+    });
+    const qualitySignals = {
+      ...creativeIntelligence.qualitySignals,
+      bestVariantScore: outputEvaluation.bestVariantScore,
+      evaluatedVariantCount: outputEvaluation.evaluatedVariantCount,
+      enhancementApplied: multiPassResult.passTypes.includes("enhancement"),
+    };
+    const explainability = {
+      ...creativeIntelligence.explainability,
+      qualitySignals,
+      outputQuality: {
+        bestVariantId: outputEvaluation.bestVariantId,
+        bestVariantIndex: outputEvaluation.bestVariantIndex,
+        evaluationSummary: outputEvaluation.summary,
+        variantScores: outputEvaluation.variantScores,
+      },
+    };
 
     const terminalState =
       producedImageCount >= context.run.requestedImageCount
@@ -396,6 +493,11 @@ export class ProcessGenerationRunUseCase {
         context.generation.id,
         deriveGenerationStateFromRun(terminalState, context.generation.state),
       );
+
+      await tx.updateVisualPlanExplainabilityByRun({
+        runId: context.run.id,
+        explainabilityJson: explainability,
+      });
     });
 
     if (terminalState === "partially_completed" || terminalState === "failed") {
@@ -412,6 +514,8 @@ export class ProcessGenerationRunUseCase {
       runId: context.run.id,
       producedImageCount,
       terminalState,
+      bestVariantId: outputEvaluation.bestVariantId,
+      bestVariantScore: outputEvaluation.bestVariantScore,
     });
 
     return {

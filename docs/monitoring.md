@@ -22,10 +22,21 @@
 - `stale_leased`, `stale_running`
 - `oldest_queued_at` yaşı
 
+## Monetization / Growth
+
+- `paywall_reason` kırılımı (`free_daily_limit`, `free_monthly_limit`, `insufficient_credits`)
+- checkout funnel (`checkout_started`, `checkout_redirected`, `checkout_failed`)
+- generation funnel (`funnel_generate_submitted`, `funnel_generate_completed`)
+- share/remix funnel (`funnel_share_completed`, `funnel_remix_completed`)
+- experiment exposure (`experiment_exposed`)
+
 ## 2. Endpointler
 
 - Liveness/Readiness: `GET /api/health`
 - Operational queue görünümü: `GET /api/v1/ops/queue` (`x-ops-key` zorunlu)
+- Public discovery cache hit görünürlüğü:
+  - `public_gallery_cache`
+  - `public_generation_cache`
 
 ## 3. Log Alan Standardı
 
@@ -46,6 +57,7 @@ Her kritik log event’i aşağıdaki alanları taşır:
 - `stale_running > 0` 2 dakikadan uzun sürerse alarm.
 - `api_billing_webhook_failed` artış trendi: uyarı.
 - `rate_limit_blocked` anomali artışı: abuse inceleme uyarısı.
+- `monetization_pricing_applied` içinde anormal `totalDebit` dağılımı: maliyet alarmı.
 
 ## 5. Sentry
 

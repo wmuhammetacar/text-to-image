@@ -181,10 +181,11 @@ describe("Provider pipeline integration", () => {
     });
 
     const { store, uploadedPaths } = createMemoryStore();
-    const fetchFn = vi
-      .fn<typeof fetch>()
-      .mockImplementationOnce(async () =>
-        jsonResponse({
+    let requestCallCount = 0;
+    const fetchFn = vi.fn<typeof fetch>().mockImplementation(async () => {
+      requestCallCount += 1;
+      if (requestCallCount === 1) {
+        return jsonResponse({
           output_text: JSON.stringify({
             user_intent: {
               summary: "sakin",
@@ -199,13 +200,13 @@ describe("Provider pipeline integration", () => {
               themes: ["nature"],
             },
           }),
-        }),
-      )
-      .mockImplementationOnce(async () =>
-        jsonResponse({
-          data: [{ b64_json: Buffer.from(Uint8Array.from([1, 2, 3])).toString("base64") }],
-        }),
-      );
+        });
+      }
+
+      return jsonResponse({
+        data: [{ b64_json: Buffer.from(Uint8Array.from([1, 2, 3])).toString("base64") }],
+      });
+    });
 
     const bundle = createProviderBundle(
       {
@@ -230,7 +231,9 @@ describe("Provider pipeline integration", () => {
     const tick = await runWorkerTick(createWorkerDeps({ repository, providerBundle: bundle }));
     expect(tick).toBe("completed");
     expect(repository.getRun(created.runId)?.pipelineState).toBe("completed");
-    expect(uploadedPaths[0]).toContain(`${created.generationId}/${created.runId}/variant-1.png`);
+    expect(uploadedPaths.some((path) =>
+      path.includes(`${created.generationId}/${created.runId}/enhancement/variant-1.png`)
+    )).toBe(true);
   });
 
   it("real provider kismi varyant donerse partially_completed + refund uygulanir", async () => {
@@ -245,10 +248,11 @@ describe("Provider pipeline integration", () => {
     });
 
     const { store } = createMemoryStore();
-    const fetchFn = vi
-      .fn<typeof fetch>()
-      .mockImplementationOnce(async () =>
-        jsonResponse({
+    let requestCallCount = 0;
+    const fetchFn = vi.fn<typeof fetch>().mockImplementation(async () => {
+      requestCallCount += 1;
+      if (requestCallCount === 1) {
+        return jsonResponse({
           output_text: JSON.stringify({
             user_intent: {
               summary: "kısmi",
@@ -263,13 +267,13 @@ describe("Provider pipeline integration", () => {
               themes: [],
             },
           }),
-        }),
-      )
-      .mockImplementationOnce(async () =>
-        jsonResponse({
-          data: [{ b64_json: Buffer.from(Uint8Array.from([7, 7, 7])).toString("base64") }],
-        }),
-      );
+        });
+      }
+
+      return jsonResponse({
+        data: [{ b64_json: Buffer.from(Uint8Array.from([7, 7, 7])).toString("base64") }],
+      });
+    });
 
     const bundle = createProviderBundle(
       {

@@ -88,6 +88,31 @@ export class InsufficientCreditsError extends AppError {
   }
 }
 
+export class FreeTierLimitExceededError extends AppError {
+  public constructor(params: {
+    reason: "free_daily_limit" | "free_monthly_limit";
+    requiredCredits: number;
+    usedDailyCredits: number;
+    usedMonthlyCredits: number;
+    dailyLimit: number;
+    monthlyLimit: number;
+  }) {
+    super({
+      code: "INSUFFICIENT_CREDITS",
+      message: "Ücretsiz kullanım limiti doldu. Devam etmek için kredi satın alın.",
+      httpStatus: 402,
+      details: {
+        paywall_reason: params.reason,
+        required_credits: params.requiredCredits,
+        used_daily_credits: params.usedDailyCredits,
+        used_monthly_credits: params.usedMonthlyCredits,
+        daily_limit: params.dailyLimit,
+        monthly_limit: params.monthlyLimit,
+      },
+    });
+  }
+}
+
 export class GenerationBusyError extends AppError {
   public constructor() {
     super({

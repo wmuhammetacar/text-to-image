@@ -5,14 +5,28 @@ import {
   creditsResponseSchema,
   generationDetailResponseSchema,
   generationHistoryItemSchema,
+  generationVisibilityUpdateResponseSchema,
+  publicGalleryResponseSchema,
+  publicGenerationDetailResponseSchema,
+  publicGalleryQuerySchema,
   refineGenerationResponseSchema,
   standardErrorSchema,
   submitGenerationResponseSchema,
+  submitUpscaleResponseSchema,
+  submitVariationResponseSchema,
+  generationVisibilityUpdateBodySchema,
   type CheckoutRequestDto,
   type CreditsResponseDto,
   type GenerationDetailResponseDto,
+  type GenerationVisibilityUpdateRequestDto,
+  type GenerationVisibilityUpdateResponseDto,
   type GenerationRequestDto,
+  type PublicGalleryQueryDto,
+  type PublicGalleryResponseDto,
+  type PublicGenerationDetailResponseDto,
   type RefineRequestDto,
+  type UpscaleRequestDto,
+  type VariationRequestDto,
 } from "@vi/contracts";
 import { getBrowserSupabaseClient } from "./supabase-browser";
 
@@ -38,7 +52,7 @@ export class ApiClientError extends Error {
 }
 
 interface FetchOptions {
-  method?: "GET" | "POST" | "DELETE";
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: Record<string, unknown>;
   idempotencyKey?: string;
 }
@@ -119,6 +133,19 @@ async function apiFetch(path: string, options: FetchOptions = {}): Promise<unkno
   return response.json();
 }
 
+async function publicApiFetch(path: string): Promise<unknown> {
+  const response = await fetch(path, {
+    method: "GET",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    return parseError(response);
+  }
+
+  return response.json();
+}
+
 export interface GenerationHistoryResponse {
   items: Array<{
     generation_id: string;
@@ -178,6 +205,62 @@ export async function refineGeneration(params: {
   const parsed = refineGenerationResponseSchema.parse(raw);
   return {
     runId: parsed.new_run_id,
+    requestId: parsed.request_id,
+  };
+}
+
+export async function createVariation(payload: VariationRequestDto): Promise<{
+  generationId: string;
+  variationRequestId: string;
+  runId: string;
+  variationType: VariationRequestDto["variation_type"];
+  pollPath: string;
+  requestId: string;
+}> {
+  const idempotencyKey = createIdempotencyKey("variation");
+  const raw = await apiFetch("/api/v1/variations", {
+    method: "POST",
+    body: payload,
+    idempotencyKey,
+  });
+
+  const parsed = submitVariationResponseSchema.parse(raw);
+
+  return {
+    generationId: parsed.generation_id,
+    variationRequestId: parsed.variation_request_id,
+    runId: parsed.new_run_id,
+    variationType: parsed.variation_type,
+    pollPath: parsed.poll_path,
+    requestId: parsed.request_id,
+  };
+}
+
+export async function createUpscale(payload: UpscaleRequestDto): Promise<{
+  generationId: string;
+  variationRequestId: string;
+  runId: string;
+  baseVariantId: string;
+  variationType: "upscale";
+  pollPath: string;
+  requestId: string;
+}> {
+  const idempotencyKey = createIdempotencyKey("upscale");
+  const raw = await apiFetch("/api/v1/upscale", {
+    method: "POST",
+    body: payload,
+    idempotencyKey,
+  });
+
+  const parsed = submitUpscaleResponseSchema.parse(raw);
+
+  return {
+    generationId: parsed.generation_id,
+    variationRequestId: parsed.variation_request_id,
+    runId: parsed.new_run_id,
+    baseVariantId: parsed.base_variant_id,
+    variationType: parsed.variation_type,
+    pollPath: parsed.poll_path,
     requestId: parsed.request_id,
   };
 }
@@ -272,4 +355,52 @@ export async function createBillingCheckout(payload: CheckoutRequestDto): Promis
     checkoutUrl: parsed.checkout_url,
     requestId: parsed.request_id,
   };
+}
+
+export async function updateGenerationVisibility(params: {
+  generationId: string;
+  payload: GenerationVisibilityUpdateRequestDto;
+}): Promise<GenerationVisibilityUpdateResponseDto> {
+  const parsedPayload = generationVisibilityUpdateBodySchema.parse(params.payload);
+  const raw = await apiFetch(`/api/v1/generations/${params.generationId}/visibility`, {
+    method: "PATCH",
+    body: parsedPayload,
+  });
+  return generationVisibilityUpdateResponseSchema.parse(raw);
+}
+
+export async function listPublicGallery(
+  query: Partial<PublicGalleryQueryDto> = {},
+): Promise<PublicGalleryResponseDto> {
+  const parsedQuery = publicGalleryQuerySchema.parse(query);
+  const search = new URLSearchParams();
+
+  if (parsedQuery.limit !== undefined) {
+    search.set("limit", String(parsedQuery.limit));
+  }
+  if (parsedQuery.cursor !== undefined) {
+    search.set("cursor", parsedQuery.cursor);
+  }
+  if (parsedQuery.sort !== undefined) {
+    search.set("sort", parsedQuery.sort);
+  }
+  if (parsedQuery.filter !== undefined) {
+    search.set("filter", parsedQuery.filter);
+  }
+  if (parsedQuery.tag !== undefined) {
+    search.set("tag", parsedQuery.tag);
+  }
+
+  const queryString = search.toString();
+  const raw = await publicApiFetch(
+    `/api/v1/public/gallery${queryString.length > 0 ? `?${queryString}` : ""}`,
+  );
+  return publicGalleryResponseSchema.parse(raw);
+}
+
+export async function getPublicGenerationDetail(
+  shareSlug: string,
+): Promise<PublicGenerationDetailResponseDto> {
+  const raw = await publicApiFetch(`/api/v1/public/generations/${encodeURIComponent(shareSlug)}`);
+  return publicGenerationDetailResponseSchema.parse(raw);
 }

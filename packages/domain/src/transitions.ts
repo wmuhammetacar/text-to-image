@@ -1,5 +1,6 @@
 import type {
   BillingEventState,
+  GenerationPassStatus,
   GenerationRunPipelineState,
   GenerationState,
   JobQueueState,
@@ -39,6 +40,13 @@ const billingTransitionMap: Readonly<Record<BillingEventState, BillingEventState
   ignored_duplicate: [],
 };
 
+const passTransitionMap: Readonly<Record<GenerationPassStatus, GenerationPassStatus[]>> = {
+  queued: ["running"],
+  running: ["completed", "failed"],
+  completed: [],
+  failed: [],
+};
+
 export function canTransitionRun(
   from: GenerationRunPipelineState,
   to: GenerationRunPipelineState,
@@ -52,6 +60,13 @@ export function canTransitionJob(from: JobQueueState, to: JobQueueState): boolea
 
 export function canTransitionBillingEvent(from: BillingEventState, to: BillingEventState): boolean {
   return billingTransitionMap[from].includes(to);
+}
+
+export function canTransitionGenerationPass(
+  from: GenerationPassStatus,
+  to: GenerationPassStatus,
+): boolean {
+  return passTransitionMap[from].includes(to);
 }
 
 export function deriveGenerationStateFromRun(

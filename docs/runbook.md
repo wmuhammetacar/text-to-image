@@ -22,7 +22,12 @@ Dogru siralama:
 2. `supabase/migrations/0002_indexes_constraints.sql`
 3. `supabase/migrations/0003_rls_policies.sql`
 4. `supabase/migrations/0004_views_and_projections.sql`
-5. `supabase/seed.sql`
+5. `supabase/migrations/0005_generation_passes.sql`
+6. `supabase/migrations/0006_variation_loop.sql`
+7. `supabase/migrations/0007_public_visibility_gallery.sql`
+8. `supabase/migrations/0008_remix_creator_graph.sql`
+9. `supabase/migrations/0009_scale_optimization.sql`
+10. `supabase/seed.sql`
 
 ## Worker Guvenlik Notlari
 
@@ -126,6 +131,21 @@ Runtime kurallari:
   - `API_RATE_LIMIT_BILLING_CHECKOUT_PER_MINUTE`
   - `API_RATE_LIMIT_BILLING_CHECKOUT_IP_PER_MINUTE`
   - `API_RATE_LIMIT_BILLING_WEBHOOK_PER_MINUTE`
+  - `API_RATE_LIMIT_BACKEND` (`memory` veya `postgres`)
+- Monetization env alanlari:
+  - `MONETIZATION_FREE_DAILY_CREDITS`
+  - `MONETIZATION_FREE_MONTHLY_CREDITS`
+  - `MONETIZATION_FREE_MAX_PASS_COUNT`
+  - `MONETIZATION_REFINE_COST_MULTIPLIER`
+  - `MONETIZATION_VARIATION_COST_MULTIPLIER`
+  - `MONETIZATION_UPSCALE_COST_MULTIPLIER`
+  - `MONETIZATION_DIRECTED_MODE_MULTIPLIER`
+- Public cache env alanlari:
+  - `PUBLIC_GALLERY_CACHE_TTL_SECONDS`
+  - `PUBLIC_GENERATION_CACHE_TTL_SECONDS`
+- Experiment env alanlari:
+  - `NEXT_PUBLIC_FEATURE_FLAGS_JSON`
+  - `NEXT_PUBLIC_EXPERIMENTS_JSON`
 - Abuse guard env alanlari:
   - `ABUSE_DAILY_CREDIT_SPEND_LIMIT`
   - `ABUSE_GENERATION_RUNS_10M_LIMIT`
@@ -141,3 +161,8 @@ Health endpoint:
 Queue operational endpoint:
 - `GET /api/v1/ops/queue`
 - Header: `x-ops-key: <OPS_API_KEY>`
+
+Materialized view refresh (opsiyonel, ranking precompute):
+```sql
+refresh materialized view concurrently public.mv_public_gallery_ranking;
+```

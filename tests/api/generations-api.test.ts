@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   type AuthService,
+  buildCreativeIntelligence,
   GetGenerationDetailUseCase,
   RefineGenerationUseCase,
   SubmitGenerationUseCase,
@@ -21,6 +22,7 @@ const OTHER_USER_ID = "00000000-0000-0000-0000-000000000312";
 interface ApiTestContext {
   repository: InMemoryRepository;
   deps: {
+    repository: InMemoryRepository;
     submitGenerationUseCase: SubmitGenerationUseCase;
     refineGenerationUseCase: RefineGenerationUseCase;
     getGenerationDetailUseCase: GetGenerationDetailUseCase;
@@ -90,6 +92,7 @@ function createApiContext(params: {
         idFactory,
         logger,
       ),
+      repository,
       refineGenerationUseCase: new RefineGenerationUseCase(
         repository,
         safetyProvider,
@@ -296,6 +299,41 @@ describe("API /api/v1/generations", () => {
     expect(secondBody.run_id).toBe(firstBody.run_id);
   });
 
+  it("POST free tier günlük limit dolduğunda paywall döner", async () => {
+    const context = createApiContext();
+    vi.spyOn(context.repository, "getUserDebitUsageSince").mockResolvedValue(30);
+    const { route } = await loadGenerationsRoute({ deps: context.deps });
+
+    const request = new Request("http://localhost/api/v1/generations", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer token",
+        "idempotency-key": "idem-api-paywall-1",
+      },
+      body: JSON.stringify({
+        text: "Yeni bir üretim denemesi",
+        requested_image_count: 1,
+        creative_mode: "balanced",
+        controls: {},
+      }),
+    });
+
+    const response = await route.POST(request);
+    const body = (await response.json()) as {
+      error: {
+        code: string;
+        details?: {
+          paywall_reason?: string;
+        };
+      };
+    };
+
+    expect(response.status).toBe(402);
+    expect(body.error.code).toBe("INSUFFICIENT_CREDITS");
+    expect(body.error.details?.paywall_reason).toBe("free_daily_limit");
+  });
+
   it("GET /generations polling/history shape doner", async () => {
     const context = createApiContext();
     const { route } = await loadGenerationsRoute({ deps: context.deps });
@@ -375,6 +413,11 @@ describe("API /api/v1/generations", () => {
       generation_id: string;
       generation_state: string;
       active_run_state: string;
+      passes: Array<{
+        pass_id: string;
+        pass_type: string;
+        status: string;
+      }>;
       runs: unknown[];
       variants: unknown[];
       request_id: string;
@@ -384,9 +427,157 @@ describe("API /api/v1/generations", () => {
     expect(body.generation_id).toBe(submitted.generation_id);
     expect(body.generation_state).toBeTruthy();
     expect(body.active_run_state).toBeTruthy();
+    expect(Array.isArray(body.passes)).toBe(true);
     expect(Array.isArray(body.runs)).toBe(true);
     expect(Array.isArray(body.variants)).toBe(true);
     expect(body.request_id).toBeTruthy();
+  });
+
+  it("GET /generations/:id creative_directions + visual_plan + explainability doner", async () => {
+    const context = createApiContext();
+
+    const submitted = await context.deps.submitGenerationUseCase.execute({
+      userId: USER_ID,
+      idempotencyKey: "idem-api-detail-creative-1",
+      payload: {
+        text: "Yağmurlu bir şehirde sinematik gece sahnesi",
+        requested_image_count: 1,
+        creative_mode: "directed",
+        controls: {
+          cinematic: 2,
+          darkness: 1,
+        },
+      },
+      requestId: "req_api_detail_creative_seed_1",
+      creditCostPerImage: 1,
+    });
+
+    const creative = buildCreativeIntelligence({
+      sourceText: "Yağmurlu bir şehirde sinematik gece sahnesi",
+      refinementInstruction: null,
+      creativeMode: "directed",
+      generationControls: {
+        cinematic: 2,
+        darkness: 1,
+      },
+      refinementControls: null,
+      providerIntentJson: {
+        summary: "dramatik şehir gecesi",
+        subjects: ["şehir", "yağmur", "sokak ışığı"],
+        visual_goal: "sinematik görselleştirme",
+        narrative_intent: "gerilimli gece atmosferi",
+        style_hints: ["cinematic", "noir"],
+      },
+      providerEmotionJson: {
+        dominant_emotion: "tension",
+        secondary_emotions: ["awe"],
+        intensity: 8,
+        valence: -0.2,
+        arousal: 0.82,
+        atmosphere: ["rainy", "noir"],
+        themes: ["urban"],
+        emotional_tone: "charged",
+      },
+    });
+
+    await context.repository.withTransaction(async (tx) => {
+      await tx.transitionRunState({
+        runId: submitted.run_id,
+        from: "queued",
+        to: "analyzing",
+      });
+      await tx.transitionRunState({
+        runId: submitted.run_id,
+        from: "analyzing",
+        to: "planning",
+      });
+      await tx.transitionRunState({
+        runId: submitted.run_id,
+        from: "planning",
+        to: "generating",
+      });
+      await tx.transitionRunState({
+        runId: submitted.run_id,
+        from: "generating",
+        to: "completed",
+        setCompletedAt: true,
+      });
+      await tx.updateGenerationState(submitted.generation_id, "completed");
+
+      await tx.createAnalysisArtifacts({
+        generationId: submitted.generation_id,
+        runId: submitted.run_id,
+        userId: USER_ID,
+        userIntent: {
+          intentJson: creative.userIntent,
+          modelName: "mock-emotion-v1",
+          confidence: 0.81,
+        },
+        emotionAnalysis: {
+          analysisJson: creative.emotionProfile,
+          modelName: "mock-emotion-v1",
+        },
+        creativeDirections: creative.creativeDirections.map((direction) => ({
+          directionIndex: direction.directionIndex,
+          directionTitle: direction.title,
+          directionJson: direction.spec,
+        })),
+        visualPlan: {
+          selectedCreativeDirectionIndex: creative.selectedDirectionIndex,
+          planJson: creative.visualPlan,
+          explainabilityJson: creative.explainability,
+        },
+      });
+    });
+
+    const route = await loadGenerationDetailRoute({ deps: context.deps });
+    const response = await route.GET(
+      new Request(`http://localhost/api/v1/generations/${submitted.generation_id}`, {
+        method: "GET",
+        headers: {
+          authorization: "Bearer token",
+        },
+      }),
+      {
+        params: Promise.resolve({ id: submitted.generation_id }),
+      },
+    );
+
+    const body = (await response.json()) as {
+      creative_directions: Array<{
+        direction_id: string;
+        title: string;
+        scores: { total_score: number };
+      }>;
+      selected_direction: { direction_id: string; title: string; selection_reason: string } | null;
+      visual_plan: { prompt_core: string; summary: string } | null;
+      explainability: { summary: string; why_selected_direction: string; ambiguity_notes: string } | null;
+      quality_signals: {
+        selected_direction_score: number;
+        score_spread: number;
+        best_variant_score: number;
+        evaluated_variant_count: number;
+      } | null;
+      variant_scores: unknown[];
+      best_variant_id: string | null;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.creative_directions.length).toBeGreaterThanOrEqual(3);
+    expect(body.selected_direction?.direction_id).toBeTruthy();
+    expect(body.selected_direction?.title).toBeTruthy();
+    expect(body.selected_direction?.selection_reason.length).toBeGreaterThan(10);
+    expect(body.creative_directions.every((direction) => direction.scores.total_score > 0)).toBe(true);
+    expect(body.visual_plan?.prompt_core).toBeTruthy();
+    expect(body.visual_plan?.summary).toBeTruthy();
+    expect(body.explainability?.summary).toBeTruthy();
+    expect(body.explainability?.why_selected_direction.length).toBeGreaterThan(10);
+    expect(body.explainability?.ambiguity_notes.length).toBeGreaterThan(10);
+    expect(body.quality_signals?.selected_direction_score).toBeGreaterThan(0);
+    expect(body.quality_signals?.best_variant_score).toBeGreaterThanOrEqual(0);
+    expect(body.quality_signals?.evaluated_variant_count).toBeGreaterThanOrEqual(0);
+    expect(Array.isArray(body.variant_scores)).toBe(true);
+    expect(body.best_variant_id).toBeNull();
   });
 
   it("POST /generations/:id/refine yeni run acar", async () => {

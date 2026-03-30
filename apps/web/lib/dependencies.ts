@@ -3,10 +3,14 @@ import {
   CreateBillingCheckoutUseCase,
   GetGenerationDetailUseCase,
   GetCreditsUseCase,
+  PublicGalleryUseCase,
   ProcessStripeWebhookUseCase,
   RefineGenerationUseCase,
+  SubmitUpscaleUseCase,
+  SubmitVariationUseCase,
   type StripeWebhookVerifier,
   SubmitGenerationUseCase,
+  UpdateGenerationVisibilityUseCase,
 } from "@vi/application";
 import { getConfig } from "@vi/config";
 import {
@@ -36,7 +40,11 @@ interface WebDependencies {
   billingRepository: ReturnType<typeof createPostgresBillingRepository>;
   submitGenerationUseCase: SubmitGenerationUseCase;
   refineGenerationUseCase: RefineGenerationUseCase;
+  submitVariationUseCase: SubmitVariationUseCase;
+  submitUpscaleUseCase: SubmitUpscaleUseCase;
   getGenerationDetailUseCase: GetGenerationDetailUseCase;
+  publicGalleryUseCase: PublicGalleryUseCase;
+  updateGenerationVisibilityUseCase: UpdateGenerationVisibilityUseCase;
   getCreditsUseCase: GetCreditsUseCase;
   createBillingCheckoutUseCase: CreateBillingCheckoutUseCase;
   processStripeWebhookUseCase: ProcessStripeWebhookUseCase;
@@ -85,6 +93,12 @@ export function getWebDependencies(): WebDependencies {
     webhookSecret: config.STRIPE_WEBHOOK_SECRET,
     toleranceSeconds: config.BILLING_WEBHOOK_TOLERANCE_SECONDS,
   });
+  const submitVariationUseCase = new SubmitVariationUseCase(
+    repository,
+    safetyProvider,
+    idFactory,
+    logger,
+  );
 
   singleton = {
     repository,
@@ -101,6 +115,10 @@ export function getWebDependencies(): WebDependencies {
       idFactory,
       logger,
     ),
+    submitVariationUseCase,
+    submitUpscaleUseCase: new SubmitUpscaleUseCase(
+      submitVariationUseCase,
+    ),
     getGenerationDetailUseCase: new GetGenerationDetailUseCase(
       repository,
       assetSigner,
@@ -109,6 +127,18 @@ export function getWebDependencies(): WebDependencies {
       config.THUMBNAIL_SIGNED_URL_TTL_SECONDS,
       config.CREDIT_COST_PER_IMAGE,
       config.IMAGE_STORAGE_BUCKET,
+    ),
+    publicGalleryUseCase: new PublicGalleryUseCase(
+      repository,
+      assetSigner,
+      logger,
+      config.FULL_IMAGE_SIGNED_URL_TTL_SECONDS,
+      config.THUMBNAIL_SIGNED_URL_TTL_SECONDS,
+      config.IMAGE_STORAGE_BUCKET,
+    ),
+    updateGenerationVisibilityUseCase: new UpdateGenerationVisibilityUseCase(
+      repository,
+      logger,
     ),
     getCreditsUseCase: new GetCreditsUseCase(
       billingRepository,

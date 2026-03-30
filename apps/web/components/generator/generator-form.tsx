@@ -1,16 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   generationRequestBodySchema,
   type GenerationRequestDto,
 } from "@vi/contracts";
 import { useRouter } from "next/navigation";
-import { ApiClientError, createGeneration } from "../../lib/api-client";
+import { ApiClientError, createGeneration, listGenerationHistory } from "../../lib/api-client";
+import {
+  isFeatureEnabled,
+  resolveExperimentVariant,
+  trackExperimentExposure,
+} from "../../lib/experimentation";
+import { isTerminalRunState } from "../../lib/polling";
+import { trackProductEvent, trackProductEventOnce } from "../../lib/product-events";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Label } from "../ui/label";
 import { Select } from "../ui/select";
+import { ReturningSessionCard } from "./returning-session-card";
+import { StarterPrompts, type StarterPromptPreset } from "./starter-prompts";
 import { Textarea } from "../ui/textarea";
 
 interface ControlsState {
@@ -19,6 +28,53 @@ interface ControlsState {
   nostalgia: number;
   cinematic: number;
 }
+
+interface StarterPreset extends StarterPromptPreset {
+  id: string;
+  label: string;
+  text: string;
+  creativeMode: GenerationRequestDto["creative_mode"];
+  controls: ControlsState;
+}
+
+export const starterPresets: StarterPreset[] = [
+  {
+    id: "cinematic_city",
+    label: "Cinematic Şehir",
+    text: "Yağmurdan sonra neon ışıklarla parlayan bir şehirde yalnız bir karakter, dramatik sinematik atmosfer.",
+    creativeMode: "directed",
+    controls: {
+      darkness: 1,
+      calmness: 0,
+      nostalgia: 0,
+      cinematic: 2,
+    },
+  },
+  {
+    id: "dreamy_memory",
+    label: "Dreamy Anı",
+    text: "Çocukluk yaz akşamını anımsatan, yumuşak ışıklı ve nostaljik bir sahne.",
+    creativeMode: "balanced",
+    controls: {
+      darkness: -1,
+      calmness: 2,
+      nostalgia: 2,
+      cinematic: 1,
+    },
+  },
+  {
+    id: "surreal_portrait",
+    label: "Sürreal Portre",
+    text: "Gerçeküstü renk geçişleriyle yüksek kontrastlı bir portre; güçlü duygu yoğunluğu ve sembolik arka plan.",
+    creativeMode: "directed",
+    controls: {
+      darkness: 0,
+      calmness: -1,
+      nostalgia: 0,
+      cinematic: 2,
+    },
+  },
+];
 
 function toControlValue(raw: string): number {
   const parsed = Number.parseInt(raw, 10);
@@ -45,6 +101,13 @@ function mapErrorMessage(error: unknown): string {
     }
 
     if (error.code === "INSUFFICIENT_CREDITS") {
+      const paywallReason = error.details?.paywall_reason;
+      if (paywallReason === "free_daily_limit") {
+        return "Günlük ücretsiz limit doldu. Devam etmek için Billing ekranından kredi satın alın.";
+      }
+      if (paywallReason === "free_monthly_limit") {
+        return "Aylık ücretsiz limit doldu. Devam etmek için Billing ekranından kredi satın alın.";
+      }
       return "Yetersiz kredi. Yeni üretim başlatmak için kredi ekleyin.";
     }
 
@@ -83,6 +146,67 @@ export function GeneratorForm(): React.JSX.Element {
   });
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showActivation, setShowActivation] = useState(false);
+  const [activationExperimentVariant, setActivationExperimentVariant] = useState("control");
+  const [latestHistory, setLatestHistory] = useState<{
+    generationId: string;
+    activeRunState: string;
+  } | null>(null);
+  const showBillingCta =
+    errorMessage !== null &&
+    (errorMessage.includes("kredi") || errorMessage.includes("limit"));
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadActivation = async (): Promise<void> => {
+      try {
+        const history = await listGenerationHistory({
+          limit: 1,
+        });
+        if (cancelled) {
+          return;
+        }
+        const isNewUser = history.items.length === 0;
+        const starterCardsEnabled = isFeatureEnabled("activation_starter_cards", {
+          fallback: true,
+        });
+        setShowActivation(isNewUser && starterCardsEnabled);
+
+        const experimentVariant = resolveExperimentVariant({
+          key: "activation_starter_copy",
+          fallbackVariant: "control",
+        });
+        setActivationExperimentVariant(experimentVariant);
+        trackExperimentExposure({
+          experimentKey: "activation_starter_copy",
+          variant: experimentVariant,
+        });
+        const latest = history.items[0];
+        if (latest !== undefined) {
+          setLatestHistory({
+            generationId: latest.generation_id,
+            activeRunState: latest.active_run_state,
+          });
+          trackProductEventOnce("return_session_started", {
+            latest_generation_id: latest.generation_id,
+            latest_run_state: latest.active_run_state,
+          });
+        } else {
+          setLatestHistory(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setShowActivation(false);
+          setLatestHistory(null);
+        }
+      }
+    };
+
+    void loadActivation();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const onSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -103,9 +227,25 @@ export function GeneratorForm(): React.JSX.Element {
 
     setSubmitting(true);
     try {
+      trackProductEvent("funnel_generate_submitted", {
+        creative_mode: parsed.data.creative_mode,
+        requested_image_count: parsed.data.requested_image_count,
+      });
       const response = await createGeneration(parsed.data);
+      trackProductEventOnce("first_generation_created", {
+        creative_mode: parsed.data.creative_mode,
+        requested_image_count: parsed.data.requested_image_count,
+      });
+      trackProductEvent("funnel_generate_completed", {
+        generation_id: response.generationId,
+      });
       router.push(`/generations/${response.generationId}`);
     } catch (error) {
+      if (error instanceof ApiClientError && error.code === "INSUFFICIENT_CREDITS") {
+        trackProductEvent("paywall_shown", {
+          reason: (error.details?.paywall_reason as string | undefined) ?? "insufficient_credits",
+        });
+      }
       setErrorMessage(mapErrorMessage(error));
     } finally {
       setSubmitting(false);
@@ -119,16 +259,62 @@ export function GeneratorForm(): React.JSX.Element {
     }));
   };
 
+  const applyStarterPreset = (preset: StarterPreset): void => {
+    setText(preset.text);
+    setCreativeMode(preset.creativeMode);
+    setControls(preset.controls);
+    setRequestedImageCount(2);
+    setErrorMessage(null);
+    trackProductEvent("starter_prompt_used", {
+      starter_id: preset.id,
+      creative_mode: preset.creativeMode,
+    });
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Yeni Üretim</CardTitle>
-        <CardDescription>
-          Metni yazın, sistem duygusal katmanı analiz ederek çoklu görsel varyant üretsin.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="space-y-6" onSubmit={onSubmit}>
+    <div className="space-y-4">
+      {showActivation === false && latestHistory !== null ? (
+        <ReturningSessionCard
+          generationId={latestHistory.generationId}
+          activeRunState={latestHistory.activeRunState}
+          unfinished={!isTerminalRunState(latestHistory.activeRunState as Parameters<typeof isTerminalRunState>[0])}
+          onContinue={() => {
+            router.push(`/generations/${latestHistory.generationId}`);
+          }}
+        />
+      ) : null}
+
+      {showActivation ? (
+        <StarterPrompts
+          headline={
+            activationExperimentVariant === "copy_b"
+              ? "Hazır başla, ilk WOW sonucu 30 saniyede al"
+              : "İlk üretimi başlat"
+          }
+          description={
+            activationExperimentVariant === "copy_b"
+              ? "Bu preset'lerden biriyle hızlıca üret, sonra variation/upscale ile kaliteyi yükselt."
+              : undefined
+          }
+          presets={starterPresets}
+          onSelect={(presetId) => {
+            const preset = starterPresets.find((entry) => entry.id === presetId);
+            if (preset !== undefined) {
+              applyStarterPreset(preset);
+            }
+          }}
+        />
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Yeni Üretim</CardTitle>
+          <CardDescription>
+            Metni yazın, sistem duygusal katmanı analiz ederek çoklu görsel varyant üretsin.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-6" onSubmit={onSubmit}>
           <div className="space-y-2">
             <Label htmlFor="generation-text">Metin</Label>
             <Textarea
@@ -211,16 +397,30 @@ export function GeneratorForm(): React.JSX.Element {
           </div>
 
           {errorMessage !== null ? (
-            <p className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-              {errorMessage}
-            </p>
+            <div className="space-y-2">
+              <p className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                {errorMessage}
+              </p>
+              {showBillingCta ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    router.push("/billing");
+                  }}
+                >
+                  Kredi satın al
+                </Button>
+              ) : null}
+            </div>
           ) : null}
 
-          <Button type="submit" fullWidth disabled={submitting}>
-            {submitting ? "Üretim başlatılıyor..." : "Generate"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+            <Button type="submit" fullWidth disabled={submitting}>
+              {submitting ? "Üretim başlatılıyor..." : "Generate"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

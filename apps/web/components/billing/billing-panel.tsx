@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ApiClientError, createBillingCheckout, getCredits } from "../../lib/api-client";
+import { trackProductEvent } from "../../lib/product-events";
 import { EmptyState } from "../shared/empty-state";
 import { ErrorState } from "../shared/error-state";
 import { Button } from "../ui/button";
@@ -86,14 +87,24 @@ export function BillingPanel(props: BillingPanelProps): React.JSX.Element {
     setCheckoutError(null);
     setLoadingPackCode(packCode);
     try {
+      trackProductEvent("checkout_started", {
+        pack_code: packCode,
+      });
       const origin = window.location.origin;
       const checkout = await createBillingCheckout({
         pack_code: packCode,
         success_url: `${origin}/billing?status=success`,
         cancel_url: `${origin}/billing?status=cancel`,
       });
+      trackProductEvent("checkout_redirected", {
+        pack_code: packCode,
+        checkout_session_id: checkout.checkoutSessionId,
+      });
       window.location.assign(checkout.checkoutUrl);
     } catch (error) {
+      trackProductEvent("checkout_failed", {
+        pack_code: packCode,
+      });
       setCheckoutError(mapCheckoutErrorMessage(error));
       setLoadingPackCode(null);
     }

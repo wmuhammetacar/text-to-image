@@ -83,10 +83,21 @@ const envSchema = z.object({
     .default("1024x1024"),
   IMAGE_STORAGE_BUCKET: z.string().min(3).max(63).default("generated-images"),
   CREDIT_COST_PER_IMAGE: z.coerce.number().int().positive().default(1),
+  MONETIZATION_FREE_DAILY_CREDITS: z.coerce.number().int().positive().default(30),
+  MONETIZATION_FREE_MONTHLY_CREDITS: z.coerce.number().int().positive().default(300),
+  MONETIZATION_FREE_ALLOW_DIRECTED: z.coerce.boolean().default(false),
+  MONETIZATION_FREE_MAX_PASS_COUNT: z.coerce.number().int().min(1).max(4).default(2),
+  MONETIZATION_REFINE_COST_MULTIPLIER: z.coerce.number().positive().default(1),
+  MONETIZATION_VARIATION_COST_MULTIPLIER: z.coerce.number().positive().default(1.25),
+  MONETIZATION_UPSCALE_COST_MULTIPLIER: z.coerce.number().positive().default(1.5),
+  MONETIZATION_DIRECTED_MODE_MULTIPLIER: z.coerce.number().positive().default(1.1),
   WORKER_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
+  WORKER_MAX_CONCURRENCY: z.coerce.number().int().min(1).max(20).default(1),
   WORKER_LEASE_SECONDS: z.coerce.number().int().positive().default(120),
   WORKER_MAX_TICKS: z.coerce.number().int().nonnegative().default(0),
   WORKER_MAX_CONSECUTIVE_ERRORS: z.coerce.number().int().positive().default(20),
+  GENERATION_FAST_PASS_COUNT: z.coerce.number().int().min(1).max(4).default(2),
+  GENERATION_FULL_PASS_COUNT: z.coerce.number().int().min(1).max(4).default(4),
   FULL_IMAGE_SIGNED_URL_TTL_SECONDS: z.coerce.number().int().positive().default(600),
   THUMBNAIL_SIGNED_URL_TTL_SECONDS: z.coerce.number().int().positive().default(1800),
   STRIPE_SECRET_KEY: z.string().min(1),
@@ -97,6 +108,8 @@ const envSchema = z.object({
   BILLING_CHECKOUT_CANCEL_PATH: z.string().min(1).default("/billing?status=cancel"),
   BILLING_WEBHOOK_TOLERANCE_SECONDS: z.coerce.number().int().positive().default(300),
   BILLING_CREDIT_PACKS_JSON: z.string().min(2),
+  PUBLIC_GALLERY_CACHE_TTL_SECONDS: z.coerce.number().int().min(0).default(20),
+  PUBLIC_GENERATION_CACHE_TTL_SECONDS: z.coerce.number().int().min(0).default(30),
   API_RATE_LIMIT_GENERATIONS_PER_MINUTE: z.coerce.number().int().positive().default(10),
   API_RATE_LIMIT_GENERATIONS_IP_PER_MINUTE: z.coerce.number().int().positive().default(25),
   API_RATE_LIMIT_REFINES_PER_MINUTE: z.coerce.number().int().positive().default(12),
@@ -104,6 +117,7 @@ const envSchema = z.object({
   API_RATE_LIMIT_BILLING_CHECKOUT_PER_MINUTE: z.coerce.number().int().positive().default(8),
   API_RATE_LIMIT_BILLING_CHECKOUT_IP_PER_MINUTE: z.coerce.number().int().positive().default(20),
   API_RATE_LIMIT_BILLING_WEBHOOK_PER_MINUTE: z.coerce.number().int().positive().default(120),
+  API_RATE_LIMIT_BACKEND: z.enum(["memory", "postgres"]).default("memory"),
   ABUSE_DAILY_CREDIT_SPEND_LIMIT: z.coerce.number().int().positive().default(150),
   ABUSE_GENERATION_RUNS_10M_LIMIT: z.coerce.number().int().positive().default(25),
   ABUSE_REFINE_RUNS_10M_LIMIT: z.coerce.number().int().positive().default(12),
@@ -129,6 +143,23 @@ const envSchema = z.object({
       code: z.ZodIssueCode.custom,
       path: ["OPENAI_API_KEY"],
       message: "OpenAI provider seçildiğinde OPENAI_API_KEY zorunludur.",
+    });
+  }
+
+  if (value.GENERATION_FAST_PASS_COUNT > value.GENERATION_FULL_PASS_COUNT) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["GENERATION_FAST_PASS_COUNT"],
+      message: "GENERATION_FAST_PASS_COUNT, GENERATION_FULL_PASS_COUNT değerinden büyük olamaz.",
+    });
+  }
+
+  if (value.MONETIZATION_FREE_MAX_PASS_COUNT > value.GENERATION_FULL_PASS_COUNT) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["MONETIZATION_FREE_MAX_PASS_COUNT"],
+      message:
+        "MONETIZATION_FREE_MAX_PASS_COUNT, GENERATION_FULL_PASS_COUNT değerinden büyük olamaz.",
     });
   }
 });

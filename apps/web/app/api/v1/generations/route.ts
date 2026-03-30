@@ -10,6 +10,7 @@ import { toStandardError } from "@vi/observability";
 import { createApiErrorResponse } from "../../../../lib/api-error-response";
 import { getWebDependencies } from "../../../../lib/dependencies";
 import { parseJsonBody } from "../../../../lib/http";
+import { resolvePricing, resolveUserTier } from "../../../../lib/monetization-policy";
 import { getRequestMeta } from "../../../../lib/request-meta";
 import { enforceRateLimit } from "../../../../lib/rate-limit";
 
@@ -65,22 +66,26 @@ export async function POST(request: Request): Promise<Response> {
     const user = await deps.authService.requireUserFromRequest(request);
     userIdForLog = user.id;
 
-    enforceRateLimit({
+    await enforceRateLimit({
       key: user.id,
       requestId,
       logger: deps.logger,
       rule: rules.userRule,
+      backend: deps.config.API_RATE_LIMIT_BACKEND,
+      databaseUrl: deps.config.DATABASE_URL,
       context: {
         ipAddress: requestMeta.ipAddress,
       },
     });
 
     if (requestMeta.ipAddress !== null) {
-      enforceRateLimit({
+      await enforceRateLimit({
         key: requestMeta.ipAddress,
         requestId,
         logger: deps.logger,
         rule: rules.ipRule,
+        backend: deps.config.API_RATE_LIMIT_BACKEND,
+        databaseUrl: deps.config.DATABASE_URL,
         context: {
           userId: user.id,
         },
@@ -95,13 +100,67 @@ export async function POST(request: Request): Promise<Response> {
 
     const idempotencyKey = parseIdempotencyHeader(request);
     const payload = await parseJsonBody(request, generationRequestBodySchema);
+    const now = new Date();
+    const monetizationRepository = (deps as {
+      repository?: {
+        getUserSegment?: (userId: string) => Promise<"b2c" | "pro_creator" | "b2b" | null>;
+        getUserDebitUsageSince?: (params: { userId: string; since: Date }) => Promise<number>;
+      };
+    }).repository;
+    const [segment, dailyUsage, monthlyUsage] = await Promise.all([
+      typeof monetizationRepository?.getUserSegment === "function"
+        ? monetizationRepository.getUserSegment(user.id)
+        : Promise.resolve<"b2c" | "pro_creator" | "b2b" | null>(null),
+      typeof monetizationRepository?.getUserDebitUsageSince === "function"
+        ? monetizationRepository.getUserDebitUsageSince({
+          userId: user.id,
+          since: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+        })
+        : Promise.resolve(0),
+      typeof monetizationRepository?.getUserDebitUsageSince === "function"
+        ? monetizationRepository.getUserDebitUsageSince({
+          userId: user.id,
+          since: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
+        })
+        : Promise.resolve(0),
+    ]);
+
+    const pricing = resolvePricing(deps.config, {
+      action: "generation",
+      userTier: resolveUserTier(segment),
+      requestedImageCount: payload.requested_image_count,
+      creativeMode: payload.creative_mode,
+      usageWindow: {
+        usedDailyCredits: dailyUsage,
+        usedMonthlyCredits: monthlyUsage,
+      },
+    });
+
+    const normalizedPayload = {
+      ...payload,
+      creative_mode: pricing.effectiveCreativeMode,
+    };
 
     const response = await deps.submitGenerationUseCase.execute({
       userId: user.id,
       idempotencyKey,
-      payload,
+      payload: normalizedPayload,
       requestId,
-      creditCostPerImage: deps.config.CREDIT_COST_PER_IMAGE,
+      creditCostPerImage: pricing.creditCostPerImage,
+    });
+
+    deps.logger.info("monetization_pricing_applied", {
+      requestId,
+      userId: user.id,
+      route: "/api/v1/generations",
+      action: "generation",
+      tier: pricing.userTier,
+      requestedImageCount: payload.requested_image_count,
+      requestedCreativeMode: payload.creative_mode,
+      effectiveCreativeMode: pricing.effectiveCreativeMode,
+      passCount: pricing.passCount,
+      creditCostPerImage: pricing.creditCostPerImage,
+      totalDebit: pricing.totalDebit,
     });
 
     return NextResponse.json(submitGenerationResponseSchema.parse(response), {

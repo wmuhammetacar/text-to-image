@@ -86,9 +86,11 @@ export async function runWorkerLoop(): Promise<void> {
   const deps = getWorkerDependencies();
   let tickCount = 0;
   let consecutiveErrors = 0;
+  const maxConcurrency = Math.max(1, deps.config.WORKER_MAX_CONCURRENCY);
 
   deps.logger.info("worker_started", {
     pollIntervalMs: deps.config.WORKER_POLL_INTERVAL_MS,
+    maxConcurrency,
     leaseSeconds: deps.config.WORKER_LEASE_SECONDS,
     maxTicks: deps.config.WORKER_MAX_TICKS,
     maxConsecutiveErrors: deps.config.WORKER_MAX_CONSECUTIVE_ERRORS,
@@ -96,11 +98,19 @@ export async function runWorkerLoop(): Promise<void> {
 
   while (deps.config.WORKER_MAX_TICKS === 0 || tickCount < deps.config.WORKER_MAX_TICKS) {
     try {
-      const result = await runWorkerTick(deps);
-      tickCount += 1;
+      const planned =
+        deps.config.WORKER_MAX_TICKS === 0
+          ? maxConcurrency
+          : Math.min(maxConcurrency, Math.max(1, deps.config.WORKER_MAX_TICKS - tickCount));
+
+      const results = await Promise.all(
+        Array.from({ length: planned }, async () => runWorkerTick(deps)),
+      );
+      tickCount += results.length;
       consecutiveErrors = 0;
 
-      if (result === "idle") {
+      const allIdle = results.every((result) => result === "idle");
+      if (allIdle) {
         await sleep(deps.config.WORKER_POLL_INTERVAL_MS);
       }
     } catch (error) {

@@ -36,6 +36,11 @@ MIGRATIONS=(
   "supabase/migrations/0002_indexes_constraints.sql"
   "supabase/migrations/0003_rls_policies.sql"
   "supabase/migrations/0004_views_and_projections.sql"
+  "supabase/migrations/0005_generation_passes.sql"
+  "supabase/migrations/0006_variation_loop.sql"
+  "supabase/migrations/0007_public_visibility_gallery.sql"
+  "supabase/migrations/0008_remix_creator_graph.sql"
+  "supabase/migrations/0009_scale_optimization.sql"
 )
 
 for file in "${MIGRATIONS[@]}"; do

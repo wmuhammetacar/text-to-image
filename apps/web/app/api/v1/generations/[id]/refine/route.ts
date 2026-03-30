@@ -9,6 +9,7 @@ import { toStandardError } from "@vi/observability";
 import { createApiErrorResponse } from "../../../../../../lib/api-error-response";
 import { getWebDependencies } from "../../../../../../lib/dependencies";
 import { parseJsonBody } from "../../../../../../lib/http";
+import { resolvePricing, resolveUserTier } from "../../../../../../lib/monetization-policy";
 import { getRequestMeta } from "../../../../../../lib/request-meta";
 import { enforceRateLimit } from "../../../../../../lib/rate-limit";
 
@@ -68,22 +69,26 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
     const user = await deps.authService.requireUserFromRequest(request);
     userIdForLog = user.id;
 
-    enforceRateLimit({
+    await enforceRateLimit({
       key: user.id,
       requestId,
       logger: deps.logger,
       rule: rules.userRule,
+      backend: deps.config.API_RATE_LIMIT_BACKEND,
+      databaseUrl: deps.config.DATABASE_URL,
       context: {
         ipAddress: requestMeta.ipAddress,
       },
     });
 
     if (requestMeta.ipAddress !== null) {
-      enforceRateLimit({
+      await enforceRateLimit({
         key: requestMeta.ipAddress,
         requestId,
         logger: deps.logger,
         rule: rules.ipRule,
+        backend: deps.config.API_RATE_LIMIT_BACKEND,
+        databaseUrl: deps.config.DATABASE_URL,
         context: {
           userId: user.id,
         },
@@ -99,6 +104,41 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
     const { id } = await context.params;
     const payload = await parseJsonBody(request, refineRequestBodySchema);
     const idempotencyKey = parseIdempotencyHeader(request);
+    const now = new Date();
+    const monetizationRepository = (deps as {
+      repository?: {
+        getUserSegment?: (userId: string) => Promise<"b2c" | "pro_creator" | "b2b" | null>;
+        getUserDebitUsageSince?: (params: { userId: string; since: Date }) => Promise<number>;
+      };
+    }).repository;
+    const [segment, dailyUsage, monthlyUsage] = await Promise.all([
+      typeof monetizationRepository?.getUserSegment === "function"
+        ? monetizationRepository.getUserSegment(user.id)
+        : Promise.resolve<"b2c" | "pro_creator" | "b2b" | null>(null),
+      typeof monetizationRepository?.getUserDebitUsageSince === "function"
+        ? monetizationRepository.getUserDebitUsageSince({
+          userId: user.id,
+          since: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+        })
+        : Promise.resolve(0),
+      typeof monetizationRepository?.getUserDebitUsageSince === "function"
+        ? monetizationRepository.getUserDebitUsageSince({
+          userId: user.id,
+          since: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
+        })
+        : Promise.resolve(0),
+    ]);
+
+    const pricing = resolvePricing(deps.config, {
+      action: "refine",
+      userTier: resolveUserTier(segment),
+      requestedImageCount: payload.requested_image_count,
+      creativeMode: "balanced",
+      usageWindow: {
+        usedDailyCredits: dailyUsage,
+        usedMonthlyCredits: monthlyUsage,
+      },
+    });
 
     const response = await deps.refineGenerationUseCase.execute({
       userId: user.id,
@@ -106,7 +146,20 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
       idempotencyKey,
       payload,
       requestId,
-      creditCostPerImage: deps.config.CREDIT_COST_PER_IMAGE,
+      creditCostPerImage: pricing.creditCostPerImage,
+    });
+
+    deps.logger.info("monetization_pricing_applied", {
+      requestId,
+      userId: user.id,
+      route: "/api/v1/generations/:id/refine",
+      action: "refine",
+      tier: pricing.userTier,
+      requestedImageCount: payload.requested_image_count,
+      effectiveCreativeMode: pricing.effectiveCreativeMode,
+      passCount: pricing.passCount,
+      creditCostPerImage: pricing.creditCostPerImage,
+      totalDebit: pricing.totalDebit,
     });
 
     return NextResponse.json(refineGenerationResponseSchema.parse(response), {
