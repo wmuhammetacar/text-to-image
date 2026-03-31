@@ -38,7 +38,7 @@ export function StarterPrompts(props: {
               {preset.text}
             </p>
             <p className="mt-2 text-[11px] uppercase tracking-wide text-muted-foreground">
-              mode: {preset.creativeMode}
+              mod: {preset.creativeMode}
             </p>
           </button>
         ))}

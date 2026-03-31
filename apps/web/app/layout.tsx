@@ -9,8 +9,8 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "Visual Intelligence Platform",
-  description: "Metinden duygusal rezonansa gore gorsel uretim uygulamasi.",
+  title: "Pixora",
+  description: "Duygudan görsele üretim platformu.",
 };
 
 export default function RootLayout({

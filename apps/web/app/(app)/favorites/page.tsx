@@ -8,11 +8,11 @@ export default function FavoritesPage(): React.JSX.Element {
         <CardHeader>
           <CardTitle>Favoriler</CardTitle>
           <CardDescription>
-            Favoriler ekranı mevcut API sözleşmesiyle uyumlu çalışır. Route hazır değilse local fallback devam eder.
+            Kaydettiğin kareleri tek yerden yönet.
           </CardDescription>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          signed_url değerleri yalnız generation detail response üzerinden okunur.
+          Favori kareleri yeniden açıp varyasyon üretmeye devam edebilirsin.
         </CardContent>
       </Card>
 

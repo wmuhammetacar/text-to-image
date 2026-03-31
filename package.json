@@ -1,5 +1,5 @@
 {
-  "name": "visual-intelligence-platform",
+  "name": "pixora",
   "private": true,
   "version": "0.1.0",
   "workspaces": [
@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:smoke": "vitest run tests/smoke",
     "test:unit": "vitest run tests/application",
     "test:integration": "vitest run tests/worker tests/api tests/security",
     "test:security": "vitest run tests/security",

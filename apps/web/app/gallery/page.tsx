@@ -8,9 +8,9 @@ export default function GalleryPage(): React.JSX.Element {
     <div className="mx-auto w-full max-w-7xl space-y-4 px-4 py-6 md:px-6">
       <Card>
         <CardHeader className="space-y-2">
-          <CardTitle className="text-2xl">Pixora Public Gallery</CardTitle>
+          <CardTitle className="text-2xl">Pixora Galeri</CardTitle>
           <CardDescription>
-            Public paylaşıma açılan üretimler burada keşfedilir. Unlisted kayıtlar sadece share bağlantısıyla açılır.
+            Açık paylaşılan üretimler burada keşfedilir. Bağlantıyla açık kayıtlar yalnız paylaşım linkiyle görüntülenir.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">

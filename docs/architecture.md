@@ -1,4 +1,4 @@
-# Visual Intelligence Platform Mimarisi (ADIM 1)
+# Pixora Mimarisi (ADIM 1)
 
 Durum: Kabul Edildi
 Tarih: 2026-03-28

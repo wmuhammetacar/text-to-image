@@ -15,7 +15,7 @@ export function ReturningSessionCard(props: {
       <CardHeader>
         <CardTitle>Kaldığın yerden devam et</CardTitle>
         <CardDescription>
-          Son generation kaydın hazır. Tek tıkla devam edebilirsin.
+          Son üretimin hazır. Tek dokunuşla devam edebilirsin.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap items-center gap-2">
@@ -24,10 +24,10 @@ export function ReturningSessionCard(props: {
           variant="outline"
           onClick={props.onContinue}
         >
-          {props.unfinished ? "Unfinished generationı devam ettir" : "Son generationı aç"}
+          {props.unfinished ? "Devam eden üretimi aç" : "Son üretimi aç"}
         </Button>
         <span className="text-xs text-muted-foreground">
-          run_state: {props.activeRunState} · id: {props.generationId}
+          durum: {props.activeRunState} · id: {props.generationId}
         </span>
       </CardContent>
     </Card>

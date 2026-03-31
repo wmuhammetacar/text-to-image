@@ -1,5 +1,7 @@
 # Monitoring (ADIM 9)
 
+Pixora release adayi izleme notlari.
+
 ## 1. Temel Sinyaller
 
 ## API
@@ -58,6 +60,13 @@ Her kritik log event’i aşağıdaki alanları taşır:
 - `api_billing_webhook_failed` artış trendi: uyarı.
 - `rate_limit_blocked` anomali artışı: abuse inceleme uyarısı.
 - `monetization_pricing_applied` içinde anormal `totalDebit` dağılımı: maliyet alarmı.
+
+## 4.1 RC Smoke Sinyalleri
+
+- `api_generations_post_failed` artisi varsa launch dondurulur.
+- `api_generation_refine_failed` artisinda refine yolu dogrulanir.
+- `api_generation_visibility_patch_failed` artisinda share mode kapatilir.
+- `api_public_generation_detail_get_failed` artisinda public share gecici kapatilir.
 
 ## 5. Sentry
 

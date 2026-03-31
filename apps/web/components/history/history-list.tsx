@@ -63,7 +63,7 @@ export function HistoryList(): React.JSX.Element {
       <Card>
         <CardHeader>
           <CardTitle>Geçmiş yükleniyor</CardTitle>
-          <CardDescription>Generation kayıtları getiriliyor.</CardDescription>
+          <CardDescription>Üretim kayıtları getiriliyor.</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -77,7 +77,7 @@ export function HistoryList(): React.JSX.Element {
     return (
       <EmptyState
         title="Geçmiş boş"
-        description="Henüz generation oluşturmadınız. Oluştur sayfasından yeni üretim başlatın."
+        description="Henüz üretim başlatmadın. Oluştur ekranından ilk fikrini gönder."
         action={
           <Link href="/" className={buttonVariants({ fullWidth: true })}>
             Oluştur sayfasına git
@@ -97,7 +97,7 @@ export function HistoryList(): React.JSX.Element {
                 <div className="overflow-hidden rounded-xl border border-border">
                   <img
                     src={item.latest_variant_thumbnail_url}
-                    alt="Generation önizleme"
+                    alt="Üretim önizleme"
                     className="h-44 w-full object-cover"
                   />
                 </div>
@@ -118,7 +118,7 @@ export function HistoryList(): React.JSX.Element {
                 href={`/generations/${item.generation_id}`}
                 className={buttonVariants({ fullWidth: true })}
               >
-                Detaya git
+                Sonucu aç
               </Link>
             </CardContent>
           </Card>

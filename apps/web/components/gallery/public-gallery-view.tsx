@@ -33,8 +33,8 @@ const filterOptions: Array<{
   { value: "all", label: "Tümü" },
   { value: "high_quality", label: "Yüksek kalite" },
   { value: "high_remix", label: "Yüksek remix" },
-  { value: "cinematic", label: "Cinematic" },
-  { value: "surreal", label: "Surreal" },
+  { value: "cinematic", label: "Sinematik" },
+  { value: "surreal", label: "Sürreal" },
 ];
 
 export function PublicGalleryView(): React.JSX.Element {
@@ -167,7 +167,7 @@ export function PublicGalleryView(): React.JSX.Element {
       <Card>
         <CardHeader>
           <CardTitle>Galeri yükleniyor</CardTitle>
-          <CardDescription>Public Pixora üretimleri hazırlanıyor.</CardDescription>
+          <CardDescription>Pixora üretimleri hazırlanıyor.</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -181,9 +181,9 @@ export function PublicGalleryView(): React.JSX.Element {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Public Gallery</CardTitle>
+          <CardTitle>Galeri</CardTitle>
           <CardDescription>
-            Public paylaşılan Pixora üretimleri, style ve mood etiketleriyle listelenir.
+            Pixora üretimlerini stil ve duygu etiketleriyle keşfet.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-[1fr_220px_220px_auto] md:items-end">
@@ -191,7 +191,7 @@ export function PublicGalleryView(): React.JSX.Element {
             <Label htmlFor="gallery-tag">Etiket filtresi</Label>
             <Input
               id="gallery-tag"
-              placeholder="cinematic, surreal, melancholy..."
+              placeholder="sinematik, sürreal, melankolik..."
               value={tagInput}
               onChange={(event) => setTagInput(event.target.value)}
             />
@@ -238,8 +238,8 @@ export function PublicGalleryView(): React.JSX.Element {
 
       {items.length === 0 ? (
         <EmptyState
-          title="Public galeri boş"
-          description="Henüz public paylaşılan üretim yok."
+          title="Galeri şu an boş"
+          description="Henüz açık paylaşılan üretim yok."
         />
       ) : (
         <div className="space-y-4">
@@ -253,14 +253,14 @@ export function PublicGalleryView(): React.JSX.Element {
             <div className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Trending Creators</CardTitle>
+                  <CardTitle className="text-base">Yükselen üreticiler</CardTitle>
                   <CardDescription>
-                    Discovery puanı en yüksek creator’lar.
+                    Keşif puanı en güçlü üreticiler.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
                   {creatorLeaders.trending.length === 0 ? (
-                    <p className="text-muted-foreground">Henüz creator sinyali oluşmadı.</p>
+                    <p className="text-muted-foreground">Henüz üretici sinyali oluşmadı.</p>
                   ) : (
                     creatorLeaders.trending.map((creator, index) => (
                       <p key={`trend-${creator.handle}`} className="rounded-xl border border-border bg-secondary/30 px-3 py-2">
@@ -273,9 +273,9 @@ export function PublicGalleryView(): React.JSX.Element {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Most Remixed Creators</CardTitle>
+                  <CardTitle className="text-base">En çok remixlenenler</CardTitle>
                   <CardDescription>
-                    Remix etkileşimi en güçlü creator’lar.
+                    Remix etkisi en yüksek üreticiler.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">

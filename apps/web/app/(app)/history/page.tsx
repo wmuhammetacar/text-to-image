@@ -8,11 +8,11 @@ export default function HistoryPage(): React.JSX.Element {
         <CardHeader>
           <CardTitle>Geçmiş</CardTitle>
           <CardDescription>
-            generation_id, active_run_state, total_runs ve thumbnail bilgileri listelenir.
+            Son üretimlerin, durumların ve önizlemelerin tek listesi.
           </CardDescription>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Liste cursor pagination ile yüklenir.
+          Yeni kayıtlar yukarıdan akmaya devam eder.
         </CardContent>
       </Card>
 

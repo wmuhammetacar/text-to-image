@@ -147,7 +147,7 @@ export function FavoritesList(): React.JSX.Element {
     return (
       <EmptyState
         title="Favori yok"
-        description="Generation detayında varyantları favoriye ekleyerek burada listeleyebilirsiniz."
+        description="Beğendiğin kareleri favorileyince burada toplanır."
         action={
           <Link href="/history" className={buttonVariants({ fullWidth: true })}>
             Geçmişe git
@@ -189,7 +189,7 @@ export function FavoritesList(): React.JSX.Element {
                 href={`/generations/${item.favorite.generationId}`}
                 className={buttonVariants({ variant: "outline", fullWidth: true })}
               >
-                Generation detayı
+                Sonucu aç
               </Link>
               <Button
                 variant="secondary"

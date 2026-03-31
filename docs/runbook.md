@@ -1,5 +1,7 @@
 # Runbook (ADIM 9)
 
+Bu runbook Pixora release adayi operasyonu icin kullanilir.
+
 ## Migration Akisi
 
 ```bash
@@ -165,4 +167,12 @@ Queue operational endpoint:
 Materialized view refresh (opsiyonel, ranking precompute):
 ```sql
 refresh materialized view concurrently public.mv_public_gallery_ranking;
+```
+
+## Release Adayi Dogrulama Komutlari
+
+```bash
+npm run typecheck
+npm run test:smoke
+npm run test:integration
 ```

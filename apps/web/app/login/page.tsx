@@ -109,9 +109,9 @@ export default function LoginPage(): React.JSX.Element {
     <div className="mx-auto grid min-h-screen w-full max-w-5xl place-items-center px-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Visual Intelligence</CardTitle>
+          <CardTitle>Pixora</CardTitle>
           <CardDescription>
-            Duygudan görsele üretim için oturum açın.
+            Yaratıcı akışa devam etmek için giriş yapın.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -169,7 +169,7 @@ export default function LoginPage(): React.JSX.Element {
             </button>
           </div>
           <div className="mt-3 text-center text-sm text-muted-foreground">
-            Public içerikleri keşfetmek için{" "}
+            Açık içerikleri keşfetmek için{" "}
             <Link href="/gallery" className="font-medium text-primary">
               galeriye git
             </Link>

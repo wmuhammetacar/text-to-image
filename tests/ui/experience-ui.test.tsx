@@ -206,7 +206,7 @@ describe("UX + Magic Layer", () => {
 
     expect(markup).toContain("İlk üretimi başlat");
     expect(markup).toContain("Cinematic Şehir");
-    expect(markup).toContain("mode: directed");
+    expect(markup).toContain("mod: directed");
   });
 
   it("retention returning session kartı render olur", () => {
@@ -220,8 +220,8 @@ describe("UX + Magic Layer", () => {
     );
 
     expect(markup).toContain("Kaldığın yerden devam et");
-    expect(markup).toContain("Unfinished generationı devam ettir");
-    expect(markup).toContain("run_state: generating");
+    expect(markup).toContain("Devam eden üretimi aç");
+    expect(markup).toContain("durum: generating");
   });
 
   it("share CTA login redirect path auto remix context taşır", () => {

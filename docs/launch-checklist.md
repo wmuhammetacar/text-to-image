@@ -3,6 +3,7 @@
 ## 1. Deploy Öncesi
 
 - `main` branch üzerinde `npm test` ve `npm run typecheck` başarılı.
+- `npm run test:smoke` başarılı.
 - Migration sırası doğrulandı:
   1. `0001_initial_schema.sql`
   2. `0002_indexes_constraints.sql`
@@ -77,6 +78,22 @@
 - `public_gallery_cache` ve `public_generation_cache` logları cache hit/miss üretiyor.
 - Web app’de generation oluşturma + polling + refine akışı çalışıyor.
 - Worker loglarında `generation_run_stage_transition` görülüyor.
+
+## 6. Release Candidate Exit Kriterleri
+
+- Marka dili tekil: Pixora adi ve tonu UI + README + kritik dokumanlarda tutarli.
+- Ana UX akislari smoke test ile dogrulanmis:
+  - login(auth) -> generate -> result
+  - quick action -> new variant
+  - refine
+  - share visibility update
+  - public share remix girisi
+  - gallery -> share detail
+- Kritik hata kodlari normalize:
+  - `INSUFFICIENT_CREDITS`
+  - `SAFETY_HARD_BLOCK`
+  - `RATE_LIMITED`
+  - `INTERNAL_ERROR`
 
 ## 5. Rollback Planı
 

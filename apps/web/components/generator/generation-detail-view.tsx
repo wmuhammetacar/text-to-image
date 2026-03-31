@@ -100,7 +100,7 @@ function mapError(error: unknown): string {
     }
 
     if (error.code === "RESOURCE_NOT_FOUND") {
-      return "Generation bulunamadı veya erişim yetkiniz yok.";
+      return "Üretim bulunamadı veya erişim izniniz yok.";
     }
 
     if (error.code === "SAFETY_HARD_BLOCK" || error.code === "SAFETY_SOFT_BLOCK") {
@@ -630,7 +630,7 @@ export function GenerationDetailView(props: { generationId: string }): React.JSX
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Generation yükleniyor</CardTitle>
+          <CardTitle>Üretim yükleniyor</CardTitle>
           <CardDescription>Detay bilgisi hazırlanıyor.</CardDescription>
         </CardHeader>
       </Card>
@@ -640,7 +640,7 @@ export function GenerationDetailView(props: { generationId: string }): React.JSX
   if (fatalError !== null || detail === null) {
     return (
       <ErrorState
-        title="Generation yüklenemedi"
+        title="Üretim yüklenemedi"
         description={fatalError ?? "Kayıt bulunamadı."}
         actionLabel="Tekrar yükle"
         onAction={() => {

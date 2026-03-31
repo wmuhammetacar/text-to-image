@@ -49,7 +49,7 @@ export class SentryStoreReporter implements ErrorReporter {
     const body = {
       message: params.event,
       level: "error",
-      logger: "visual-intelligence-platform",
+      logger: "pixora",
       platform: "node",
       timestamp: params.timestamp,
       environment: this.environment,

@@ -1,4 +1,4 @@
-# Visual Intelligence Platform
+# Pixora
 
 Bu repo ADIM 1-6 kapsaminda backend pipeline + MVP web uygulama iskeletini icerir.
 
@@ -156,16 +156,21 @@ MVP UI ekranlari:
 - `Olustur` (`/`)
 - `Gecmis` (`/history`)
 - `Favoriler` (`/favorites`)
-- `Billing` (`/billing`)
+- `Krediler` (`/billing`)
 - `Generation detay` (`/generations/:id`)
-- `Public gallery` (`/gallery`)
-- `Share detay` (`/share/:slug`)
+- `Galeri` (`/gallery`)
+- `Paylasim detay` (`/share/:slug`)
 
 ## 6) Test
 
 Tum testler:
 ```bash
 npm test
+```
+
+Release smoke:
+```bash
+npm run test:smoke
 ```
 
 Unit:
@@ -202,7 +207,7 @@ npm run typecheck
 - Provider payload redaction zorunludur:
   - request payloadlarda ham prompt veya secret tutulmaz
   - response payloadlarda ham binary/base64 tutulmaz
-- Billing API endpointleri:
+- Kredi API endpointleri:
   - `POST /api/v1/billing/checkout`
   - `POST /api/v1/billing/stripe/webhook`
   - `GET /api/v1/credits`

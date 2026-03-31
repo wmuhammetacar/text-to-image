@@ -17,13 +17,13 @@ export default function BillingPage(): React.JSX.Element {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Billing</CardTitle>
+          <CardTitle>Krediler</CardTitle>
           <CardDescription>
-            Kredi paketini seçin, Stripe Checkout ile ödeme tamamlandığında ledger hareketi işlenir.
+            Paket seç, ödemeyi tamamla, kredin otomatik güncellensin.
           </CardDescription>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Webhook idempotency anahtarı `stripe_event_id` ile korunur. Duplicate event ikinci kez kredi yazmaz.
+          Her ödeme ve iade tek kez işlenir; bakiye güvenle korunur.
         </CardContent>
       </Card>
 

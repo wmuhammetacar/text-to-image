@@ -1,5 +1,7 @@
 # Incident Runbook (ADIM 9)
 
+Bu runbook Pixora launch sonrasi kritik incident mudahalesi icindir.
+
 ## 1. İlk 5 Dakika
 
 - Incident seviyesini belirle:
@@ -79,3 +81,9 @@
   - Kök neden
   - Tespit gecikmesi
   - Kalıcı aksiyonlar
+
+## 8. RC Donemi Hizli Karar Kurallari
+
+- Smoke akislari kirildiysa yeni release cikisi durdurulur.
+- Share/public incidentinde once public endpointler korumali moda alinur.
+- Queue veya rate-limit anomalisinde yeni trafik artisi durdurulup mevcut islem korunur.

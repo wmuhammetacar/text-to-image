@@ -33,7 +33,7 @@ export function AppShell(props: {
         <div className="space-y-3">
           <div className="px-2 pt-1">
             <h1 className="text-sm font-semibold tracking-tight text-white/90">Pixora</h1>
-            <p className="text-[10px] text-white/35">Creative OS</p>
+            <p className="text-[10px] text-white/35">Yaratıcı işletim sistemi</p>
           </div>
 
           <nav className="space-y-1">

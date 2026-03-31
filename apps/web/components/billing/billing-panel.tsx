@@ -23,13 +23,13 @@ function mapCheckoutErrorMessage(error: unknown): string {
     if (error.code === "RATE_LIMITED") {
       const retryAfter = error.details?.retry_after_seconds;
       if (typeof retryAfter === "number" && retryAfter > 0) {
-        return `Çok sık checkout denemesi yapıldı. ${Math.ceil(retryAfter)} saniye sonra tekrar deneyin.`;
+        return `Çok sık ödeme denemesi yapıldı. ${Math.ceil(retryAfter)} saniye sonra tekrar deneyin.`;
       }
-      return "Çok sık checkout denemesi yapıldı. Kısa süre sonra tekrar deneyin.";
+      return "Çok sık ödeme denemesi yapıldı. Kısa süre sonra tekrar deneyin.";
     }
 
     if (error.code === "IDEMPOTENCY_CONFLICT") {
-      return "Aynı checkout anahtarı farklı içerikle tekrarlandı.";
+      return "Aynı ödeme isteği farklı içerikle tekrarlandı.";
     }
 
     if (error.code === "INTERNAL_ERROR") {
@@ -38,7 +38,7 @@ function mapCheckoutErrorMessage(error: unknown): string {
 
     return error.message;
   }
-  return error instanceof Error ? error.message : "Checkout başlatılamadı.";
+  return error instanceof Error ? error.message : "Ödeme başlatılamadı.";
 }
 
 export function BillingPanel(props: BillingPanelProps): React.JSX.Element {
@@ -57,7 +57,7 @@ export function BillingPanel(props: BillingPanelProps): React.JSX.Element {
       return "Ödeme tamamlandı. Kredi bakiyesi kısa süre içinde güncellenir.";
     }
     if (status === "cancel") {
-      return "Checkout iptal edildi.";
+      return "Ödeme iptal edildi.";
     }
     return null;
   }, [status]);
@@ -114,7 +114,7 @@ export function BillingPanel(props: BillingPanelProps): React.JSX.Element {
     return (
       <EmptyState
         title="Paket bulunamadı"
-        description="Billing paketleri konfigüre edilmedi."
+        description="Kredi paketleri henüz yapılandırılmadı."
       />
     );
   }
@@ -124,7 +124,7 @@ export function BillingPanel(props: BillingPanelProps): React.JSX.Element {
       <Card>
         <CardHeader>
           <CardTitle>Kredi bakiyesi</CardTitle>
-          <CardDescription>Satın alma ve iade hareketleri ledger üzerinden uygulanır.</CardDescription>
+          <CardDescription>Satın alma ve iade sonrası bakiyen otomatik güncellenir.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {loadingBalance ? <p className="text-sm text-muted-foreground">Bakiye yükleniyor...</p> : null}
