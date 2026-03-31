@@ -38,9 +38,10 @@ interface StarterPreset extends StarterPromptPreset {
 
 export const starterPresets: StarterPreset[] = [
   {
-    id: "cinematic_city",
-    label: "Cinematic Şehir",
-    text: "Yağmurdan sonra neon ışıklarla parlayan bir şehirde yalnız bir karakter, dramatik sinematik atmosfer.",
+    id: "cinematic_rain_alley",
+    label: "Sinematik Yağmur",
+    category: "Sinematik sahne",
+    text: "Yağmurlu bir gecede neon tabelalar altında yürüyen yalnız karakter, güçlü sinematik ışık ve gerilimli atmosfer.",
     creativeMode: "directed",
     controls: {
       darkness: 1,
@@ -50,27 +51,94 @@ export const starterPresets: StarterPreset[] = [
     },
   },
   {
-    id: "dreamy_memory",
-    label: "Rüya Anı",
-    text: "Çocukluk yaz akşamını anımsatan, yumuşak ışıklı ve nostaljik bir sahne.",
+    id: "portrait_soft_light",
+    label: "Yumuşak Portre",
+    category: "Portre",
+    text: "Doğal ışıkta çekilmiş, sakin ama etkileyici bir portre; gözlerde netlik, arka planda yumuşak bokeh.",
     creativeMode: "balanced",
     controls: {
       darkness: -1,
-      calmness: 2,
-      nostalgia: 2,
+      calmness: 1,
+      nostalgia: 0,
+      cinematic: 0,
+    },
+  },
+  {
+    id: "fantasy_floating_temple",
+    label: "Uçan Tapınak",
+    category: "Fantastik",
+    text: "Bulutların üzerinde süzülen antik bir tapınak, altın gün batımı ışığı ve epik atmosfer.",
+    creativeMode: "directed",
+    controls: {
+      darkness: 0,
+      calmness: 1,
+      nostalgia: 0,
+      cinematic: 2,
+    },
+  },
+  {
+    id: "product_luxury_watch",
+    label: "Lüks Ürün Çekimi",
+    category: "Ürün",
+    text: "Siyah taş zemin üzerinde premium kol saati, keskin stüdyo ışığı, yüksek detay ve temiz yansıma.",
+    creativeMode: "balanced",
+    controls: {
+      darkness: 1,
+      calmness: 0,
+      nostalgia: -1,
       cinematic: 1,
     },
   },
   {
-    id: "surreal_portrait",
-    label: "Sürreal Portre",
-    text: "Gerçeküstü renk geçişleriyle yüksek kontrastlı bir portre; güçlü duygu yoğunluğu ve sembolik arka plan.",
+    id: "city_dawn_bridge",
+    label: "Şehir Şafağı",
+    category: "Şehir",
+    text: "Şafakta boş köprü üzerinde hafif sisli modern şehir manzarası, pastel tonlar ve sakin ritim.",
+    creativeMode: "balanced",
+    controls: {
+      darkness: -1,
+      calmness: 2,
+      nostalgia: 1,
+      cinematic: 1,
+    },
+  },
+  {
+    id: "art_abstract_expression",
+    label: "Soyut Sanat",
+    category: "Sanat",
+    text: "Dinamik fırça darbeleri, katmanlı dokular ve duygusal renk patlamasıyla modern soyut kompozisyon.",
     creativeMode: "directed",
     controls: {
       darkness: 0,
       calmness: -1,
       nostalgia: 0,
+      cinematic: 1,
+    },
+  },
+  {
+    id: "cinematic_desert_convoy",
+    label: "Çöl Takibi",
+    category: "Sinematik sahne",
+    text: "Toz bulutu içinde hızla ilerleyen araç konvoyu, sert güneş ışığı, geniş açı ve yoğun hareket hissi.",
+    creativeMode: "directed",
+    controls: {
+      darkness: 1,
+      calmness: -1,
+      nostalgia: 0,
       cinematic: 2,
+    },
+  },
+  {
+    id: "portrait_dreamy_memory",
+    label: "Nostaljik Portre",
+    category: "Portre",
+    text: "Altın saat ışığında çekilmiş nostaljik portre, sıcak renkler, film dokusu ve dingin bir ifade.",
+    creativeMode: "balanced",
+    controls: {
+      darkness: -1,
+      calmness: 1,
+      nostalgia: 2,
+      cinematic: 1,
     },
   },
 ];
@@ -167,9 +235,9 @@ export function GeneratorForm(): React.JSX.Element {
           return;
         }
         const isNewUser = history.items.length === 0;
-      const starterCardsEnabled = isFeatureEnabled("activation_starter_cards", {
-        fallback: true,
-      });
+        const starterCardsEnabled = isFeatureEnabled("activation_starter_cards", {
+          fallback: true,
+        });
         setShowActivation(isNewUser && starterCardsEnabled);
 
         const experimentVariant = resolveExperimentVariant({
@@ -208,6 +276,28 @@ export function GeneratorForm(): React.JSX.Element {
     };
   }, []);
 
+  const submitGenerationPayload = async (
+    payload: GenerationRequestDto,
+    source: "manual" | "starter_auto",
+  ): Promise<void> => {
+    trackProductEvent("funnel_generate_submitted", {
+      source,
+      creative_mode: payload.creative_mode,
+      requested_image_count: payload.requested_image_count,
+    });
+    const response = await createGeneration(payload);
+    trackProductEventOnce("first_generation_created", {
+      source,
+      creative_mode: payload.creative_mode,
+      requested_image_count: payload.requested_image_count,
+    });
+    trackProductEvent("funnel_generate_completed", {
+      source,
+      generation_id: response.generationId,
+    });
+    router.push(`/generations/${response.generationId}`);
+  };
+
   const onSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     setErrorMessage(null);
@@ -227,19 +317,7 @@ export function GeneratorForm(): React.JSX.Element {
 
     setSubmitting(true);
     try {
-      trackProductEvent("funnel_generate_submitted", {
-        creative_mode: parsed.data.creative_mode,
-        requested_image_count: parsed.data.requested_image_count,
-      });
-      const response = await createGeneration(parsed.data);
-      trackProductEventOnce("first_generation_created", {
-        creative_mode: parsed.data.creative_mode,
-        requested_image_count: parsed.data.requested_image_count,
-      });
-      trackProductEvent("funnel_generate_completed", {
-        generation_id: response.generationId,
-      });
-      router.push(`/generations/${response.generationId}`);
+      await submitGenerationPayload(parsed.data, "manual");
     } catch (error) {
       if (error instanceof ApiClientError && error.code === "INSUFFICIENT_CREDITS") {
         trackProductEvent("paywall_shown", {
@@ -269,6 +347,34 @@ export function GeneratorForm(): React.JSX.Element {
       starter_id: preset.id,
       creative_mode: preset.creativeMode,
     });
+  };
+
+  const startWithStarterPreset = async (preset: StarterPreset): Promise<void> => {
+    if (submitting) {
+      return;
+    }
+    applyStarterPreset(preset);
+    setSubmitting(true);
+    try {
+      await submitGenerationPayload(
+        {
+          text: preset.text,
+          requested_image_count: 2,
+          creative_mode: preset.creativeMode,
+          controls: preset.controls,
+        },
+        "starter_auto",
+      );
+    } catch (error) {
+      if (error instanceof ApiClientError && error.code === "INSUFFICIENT_CREDITS") {
+        trackProductEvent("paywall_shown", {
+          reason: (error.details?.paywall_reason as string | undefined) ?? "insufficient_credits",
+        });
+      }
+      setErrorMessage(mapErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -307,6 +413,12 @@ export function GeneratorForm(): React.JSX.Element {
                 applyStarterPreset(preset);
               }
             }}
+            onGenerate={(presetId) => {
+              const preset = starterPresets.find((entry) => entry.id === presetId);
+              if (preset !== undefined) {
+                void startWithStarterPreset(preset);
+              }
+            }}
           />
         ) : null}
 
@@ -338,9 +450,10 @@ export function GeneratorForm(): React.JSX.Element {
             required
           />
           <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground/80">
-            <span>Enter ile başlat · Shift+Enter yeni satır</span>
+            <span>Örn: yağmurlu bir şehirde yalnız bir adam, sinematik ışık</span>
             <span>{text.length}/5000</span>
           </div>
+          <p className="mt-1 text-xs text-muted-foreground/75">Enter ile başlat · Shift+Enter yeni satır</p>
 
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
             <Button

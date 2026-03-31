@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { GenerationDetailResponseDto } from "@vi/contracts";
+import type { GenerationDetailResponseDto, VariationRequestDto } from "@vi/contracts";
 import { refineRequestBodySchema } from "@vi/contracts";
 import {
   ArrowUpCircle,
@@ -45,30 +45,11 @@ import { Select } from "../ui/select";
 import { ExplainabilityPanel } from "./explainability-panel";
 import {
   QuickActions,
+  type QuickActionDefinition,
+  executeQuickAction,
   executeUpscaleAction,
   quickActionDefinitions,
 } from "./quick-actions";
-
-interface RefineControlsState {
-  darkness: number;
-  calmness: number;
-  nostalgia: number;
-  cinematic: number;
-}
-
-function toControlValue(raw: string): number {
-  const value = Number.parseInt(raw, 10);
-  if (Number.isNaN(value)) {
-    return 0;
-  }
-  if (value < -2) {
-    return -2;
-  }
-  if (value > 2) {
-    return 2;
-  }
-  return value;
-}
 
 function mapError(error: unknown): string {
   if (error instanceof ApiClientError) {
@@ -142,6 +123,30 @@ export function selectSuggestedQuickActionKeys(styleTags: string[]): string[] {
   return ["more_dramatic", "make_darker", "change_environment"];
 }
 
+export function isFirstSuccessRun(params: {
+  activeRunState: GenerationDetailResponseDto["active_run_state"];
+  runCount: number;
+  hasCompletedVariants: boolean;
+}): boolean {
+  return isTerminalRunState(params.activeRunState) && params.runCount === 1 && params.hasCompletedVariants;
+}
+
+export function shouldShowInlineSharePrompt(params: {
+  activeRunState: GenerationDetailResponseDto["active_run_state"];
+  activeRunId: string | null;
+  hasCompletedVariants: boolean;
+  visibility: GenerationDetailResponseDto["visibility"];
+  dismissedSharePromptRunId: string | null;
+}): boolean {
+  return (
+    params.activeRunId !== null &&
+    isTerminalRunState(params.activeRunState) &&
+    params.hasCompletedVariants &&
+    params.visibility === "private" &&
+    params.activeRunId !== params.dismissedSharePromptRunId
+  );
+}
+
 function VariantOriginIcon(props: {
   variant: GenerationDetailResponseDto["variants"][number];
 }): React.JSX.Element {
@@ -165,19 +170,13 @@ export function GenerationDetailView(props: { generationId: string }): React.JSX
   const [refreshToken, setRefreshToken] = useState(0);
 
   const [refineText, setRefineText] = useState("");
-  const [refineCount, setRefineCount] = useState(2);
-  const [refineControls, setRefineControls] = useState<RefineControlsState>({
-    darkness: 0,
-    calmness: 0,
-    nostalgia: 0,
-    cinematic: 0,
-  });
   const [refineSubmitting, setRefineSubmitting] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [visibilityDraft, setVisibilityDraft] = useState<GenerationDetailResponseDto["visibility"]>("private");
   const [visibilitySaving, setVisibilitySaving] = useState(false);
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareModeOpen, setShareModeOpen] = useState(false);
+  const [dismissedSharePromptRunId, setDismissedSharePromptRunId] = useState<string | null>(null);
 
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [uiState, setUiState] = useState(() => createGeneratorUiState(null));
@@ -187,6 +186,7 @@ export function GenerationDetailView(props: { generationId: string }): React.JSX
   const variantsSectionRef = useRef<HTMLDivElement | null>(null);
   const previousRunStateRef = useRef<RunState | null>(null);
   const knownVariantIdsRef = useRef<Set<string>>(new Set());
+  const guidedRunIdsRef = useRef<Set<string>>(new Set());
 
   const loadOnce = useCallback(async (): Promise<void> => {
     try {
@@ -311,7 +311,7 @@ export function GenerationDetailView(props: { generationId: string }): React.JSX
       setHighlightedVariantId(latest);
       setUiState((current) => setSelectedVariant(current, latest));
       setInlineNotifications((current) => [
-        `Yeni varyasyon hazır: ${latest}`,
+        "Yeni varyasyon hazır. Hemen inceleyebilirsin.",
         ...current,
       ].slice(0, 3));
       variantsSectionRef.current?.scrollIntoView({
@@ -440,6 +440,117 @@ export function GenerationDetailView(props: { generationId: string }): React.JSX
     selectedVariant.status === "completed" &&
     detail.generation_state !== "blocked";
 
+  const hasCompletedVariants =
+    detail !== null && detail.variants.some((variant) => variant.status === "completed");
+
+  const isFirstSuccessMoment =
+    detail !== null &&
+    isFirstSuccessRun({
+      activeRunState: detail.active_run_state,
+      runCount: detail.runs.length,
+      hasCompletedVariants,
+    });
+
+  const primaryGuidedActions = useMemo(() => {
+    const keys = ["more_dramatic", "increase_detail"];
+    return quickActionDefinitions.filter((action) => keys.includes(action.key)).slice(0, 2);
+  }, []);
+
+  const shouldShowSharePrompt =
+    detail !== null &&
+    shouldShowInlineSharePrompt({
+      activeRunState: detail.active_run_state,
+      activeRunId: detail.active_run_id,
+      hasCompletedVariants,
+      visibility: detail.visibility,
+      dismissedSharePromptRunId,
+    });
+
+  useEffect(() => {
+    if (
+      detail === null ||
+      detail.active_run_id === null ||
+      !isTerminalRunState(detail.active_run_state) ||
+      !hasCompletedVariants
+    ) {
+      return;
+    }
+
+    if (guidedRunIdsRef.current.has(detail.active_run_id)) {
+      return;
+    }
+
+    guidedRunIdsRef.current.add(detail.active_run_id);
+    setInlineNotifications((current) => [
+      "Bunu daha iyi hale getirmek ister misin? Aşağıdaki iki öneriden biriyle devam edebilirsin.",
+      ...current,
+    ].slice(0, 3));
+  }, [detail, hasCompletedVariants]);
+
+  const handleQuickActionQueued = useCallback(
+    (params: {
+      runId: string;
+      actionLabel: string;
+      variationType: VariationRequestDto["variation_type"];
+    }): void => {
+      if (detail === null) {
+        return;
+      }
+
+      setUiState((current) =>
+        setLastAction(
+          setLoadingVariant(current, null),
+          {
+            type: "variation",
+            label: params.actionLabel,
+            runId: params.runId,
+          },
+        )
+      );
+      setActionMessage(`${params.actionLabel} isteği sıraya alındı.`);
+      trackProductEvent("remix_cta_clicked", {
+        source: "generation_detail_quick_action",
+        variation_type: params.variationType,
+        generation_id: detail.generation_id,
+      });
+      trackProductEventOnce("first_remix", {
+        source: "generation_detail_quick_action",
+        variation_type: params.variationType,
+      });
+      trackProductEvent("suggestion_used", {
+        source: "generation_detail",
+        suggestion_key: params.variationType,
+        generation_id: detail.generation_id,
+      });
+      setRefreshToken((value) => value + 1);
+    },
+    [detail],
+  );
+
+  const onPrimaryGuidedAction = async (action: QuickActionDefinition): Promise<void> => {
+    if (!canRunVariantActions || selectedVariant === null) {
+      return;
+    }
+
+    setActionMessage(null);
+    setUiState((current) => setLoadingVariant(current, selectedVariant.image_variant_id));
+    try {
+      const result = await executeQuickAction({
+        baseVariantId: selectedVariant.image_variant_id,
+        action,
+      });
+
+      handleQuickActionQueued({
+        runId: result.runId,
+        actionLabel: action.label,
+        variationType: result.variationType,
+      });
+    } catch (error) {
+      setActionMessage(mapError(error));
+      setUiState((current) => setLoadingVariant(current, null));
+    }
+  };
+
   const onToggleFavorite = async (
     variant: NonNullable<typeof detail>["variants"][number],
   ): Promise<void> => {
@@ -476,8 +587,13 @@ export function GenerationDetailView(props: { generationId: string }): React.JSX
 
     const parsed = refineRequestBodySchema.safeParse({
       refinement_instruction: refineText,
-      controls_delta: refineControls,
-      requested_image_count: refineCount,
+      controls_delta: {
+        darkness: 0,
+        calmness: 0,
+        nostalgia: 0,
+        cinematic: 0,
+      },
+      requested_image_count: 2,
     });
 
     if (!parsed.success) {
@@ -739,6 +855,9 @@ export function GenerationDetailView(props: { generationId: string }): React.JSX
             className="rounded-full px-5"
             onClick={() => {
               setShareModeOpen(true);
+              if (detail.active_run_id !== null) {
+                setDismissedSharePromptRunId(detail.active_run_id);
+              }
               trackProductEvent("share_clicked", {
                 cta: "open_share_mode",
                 generation_id: detail.generation_id,
@@ -752,39 +871,115 @@ export function GenerationDetailView(props: { generationId: string }): React.JSX
 
         {selectedVariant !== null ? (
           <div className="space-y-3">
+            <div className="rounded-2xl bg-white/6 px-3 py-3">
+              <p className="text-sm font-medium text-white/95">Bunu daha iyi hale getirmek ister misin?</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {primaryGuidedActions.map((action) => (
+                  <Button
+                    key={`guided-${action.key}`}
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-9 rounded-full bg-white/10 px-4 text-xs text-white/90 transition hover:-translate-y-0.5 hover:bg-white/15"
+                    disabled={!canRunVariantActions || refineSubmitting || uiState.loadingVariantId !== null}
+                    onClick={() => void onPrimaryGuidedAction(action)}
+                  >
+                    {action.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {isFirstSuccessMoment ? (
+              <div className="rounded-2xl bg-emerald-400/15 px-3 py-3 text-sm text-emerald-100">
+                <p className="font-medium">İlk görselini oluşturdun</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 rounded-full px-4"
+                    onClick={() => {
+                      setShareModeOpen(true);
+                      if (detail.active_run_id !== null) {
+                        setDismissedSharePromptRunId(detail.active_run_id);
+                      }
+                      trackProductEvent("share_clicked", {
+                        cta: "first_success_share",
+                        generation_id: detail.generation_id,
+                      });
+                    }}
+                  >
+                    Paylaş
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 rounded-full bg-white/10 px-4 text-white/90"
+                    disabled={!canRunVariantActions || uiState.loadingVariantId !== null}
+                    onClick={() => {
+                      const dramaticAction = quickActionDefinitions.find((action) => action.key === "more_dramatic");
+                      if (dramaticAction !== undefined) {
+                        void onPrimaryGuidedAction(dramaticAction);
+                      }
+                    }}
+                  >
+                    Remix dene
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
+            {shouldShowSharePrompt ? (
+              <div className="rounded-2xl bg-primary/20 px-3 py-3 text-sm text-white">
+                <p className="font-medium">Bunu paylaşmak ister misin?</p>
+                <p className="mt-1 text-xs text-white/75">Bunu başkaları da görmeli.</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 rounded-full px-4"
+                    onClick={() => {
+                      setShareModeOpen(true);
+                      if (detail.active_run_id !== null) {
+                        setDismissedSharePromptRunId(detail.active_run_id);
+                      }
+                      trackProductEvent("share_clicked", {
+                        cta: "inline_share_prompt",
+                        generation_id: detail.generation_id,
+                      });
+                    }}
+                  >
+                    Paylaş
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 rounded-full bg-white/10 px-4 text-white/90"
+                    disabled={!canRunVariantActions || uiState.loadingVariantId !== null}
+                    onClick={() => {
+                      if (detail.active_run_id !== null) {
+                        setDismissedSharePromptRunId(detail.active_run_id);
+                      }
+                      const dramaticAction = quickActionDefinitions.find((action) => action.key === "more_dramatic");
+                      if (dramaticAction !== undefined) {
+                        void onPrimaryGuidedAction(dramaticAction);
+                      }
+                    }}
+                  >
+                    Remix’e aç
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
             <p className="text-xs uppercase tracking-wide text-white/45">Pixora önerileri</p>
             <QuickActions
               variantId={selectedVariant.image_variant_id}
               actions={quickActionsForDisplay}
               disabled={!canRunVariantActions || refineSubmitting}
-              onQueued={(params) => {
-                setUiState((current) =>
-                  setLastAction(
-                    setLoadingVariant(current, null),
-                    {
-                      type: "variation",
-                      label: params.actionLabel,
-                      runId: params.runId,
-                    },
-                  )
-                );
-                setActionMessage(`${params.actionLabel} isteği sıraya alındı.`);
-                trackProductEvent("remix_cta_clicked", {
-                  source: "generation_detail_quick_action",
-                  variation_type: params.variationType,
-                  generation_id: detail.generation_id,
-                });
-                trackProductEventOnce("first_remix", {
-                  source: "generation_detail_quick_action",
-                  variation_type: params.variationType,
-                });
-                trackProductEvent("suggestion_used", {
-                  source: "generation_detail",
-                  suggestion_key: params.variationType,
-                  generation_id: detail.generation_id,
-                });
-                setRefreshToken((value) => value + 1);
-              }}
+              onQueued={(params) => handleQuickActionQueued(params)}
               onError={(message) => setActionMessage(message)}
               onLoadingVariantChange={(variantId) => {
                 setUiState((current) => setLoadingVariant(current, variantId));
@@ -811,89 +1006,39 @@ export function GenerationDetailView(props: { generationId: string }): React.JSX
               className="h-11 rounded-full px-6"
               disabled={!canRefine || refineSubmitting || uiState.loadingVariantId !== null}
             >
-              {refineSubmitting ? "Düşünüyor..." : "Dönüştür"}
+              {refineSubmitting ? "Pixora düzenliyor..." : "Daha iyi hale getir"}
             </Button>
           </div>
-
-          <details className="rounded-2xl bg-white/5 px-3 py-2 text-xs text-white/65">
-            <summary className="cursor-pointer list-none">İnce ayarlar</summary>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <Select
-                id="refine-count"
-                value={String(refineCount)}
-                onChange={(event) => {
-                  const value = Number.parseInt(event.target.value, 10);
-                  if (value >= 1 && value <= 4) {
-                    setRefineCount(value);
-                  }
-                }}
-              >
-                <option value="1">1 varyant</option>
-                <option value="2">2 varyant</option>
-                <option value="3">3 varyant</option>
-                <option value="4">4 varyant</option>
-              </Select>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-9 rounded-full bg-white/8 px-3 text-xs"
-                  disabled={!canRunVariantActions || selectedVariant === null || uiState.loadingVariantId !== null}
-                  onClick={() => {
-                    if (selectedVariant !== null) {
-                      void onUpscale(selectedVariant);
-                    }
-                  }}
-                >
-                  Yükselt
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-9 rounded-full bg-white/8 px-3 text-xs"
-                  disabled={selectedVariant === null}
-                  onClick={() => {
-                    if (selectedVariant !== null) {
-                      void onToggleFavorite(selectedVariant);
-                    }
-                  }}
-                >
-                  {selectedVariant !== null &&
-                  (favoriteIds.has(selectedVariant.image_variant_id) ||
-                    isFavorited(selectedVariant.image_variant_id))
-                    ? "Favoride"
-                    : "Favorile"}
-                </Button>
-              </div>
-              {([
-                ["darkness", "Karanlık"],
-                ["calmness", "Sakinlik"],
-                ["nostalgia", "Nostalji"],
-                ["cinematic", "Sinematik"],
-              ] as const).map(([key, label]) => (
-                <div key={key} className="space-y-1">
-                  <div className="flex items-center justify-between text-[11px] text-white/55">
-                    <span>{label}</span>
-                    <span>{refineControls[key]}</span>
-                  </div>
-                  <input
-                    id={`refine-${key}`}
-                    type="range"
-                    min={-2}
-                    max={2}
-                    step={1}
-                    value={refineControls[key]}
-                    onChange={(event) => {
-                      const value = toControlValue(event.target.value);
-                      setRefineControls((current) => ({ ...current, [key]: value }));
-                    }}
-                    className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/20"
-                  />
-                </div>
-              ))}
-            </div>
-          </details>
+          <p className="text-xs text-white/55">Akış: Yaz → Gör → Geliştir → Paylaş</p>
         </form>
+
+        {selectedVariant !== null ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-9 rounded-full bg-white/8 px-3 text-xs"
+              disabled={!canRunVariantActions || uiState.loadingVariantId !== null}
+              onClick={() => {
+                void onUpscale(selectedVariant);
+              }}
+            >
+              Yükselt
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-9 rounded-full bg-white/8 px-3 text-xs"
+              onClick={() => {
+                void onToggleFavorite(selectedVariant);
+              }}
+            >
+              {favoriteIds.has(selectedVariant.image_variant_id) || isFavorited(selectedVariant.image_variant_id)
+                ? "Favoride"
+                : "Favorile"}
+            </Button>
+          </div>
+        ) : null}
 
         {sortedVariants.length === 0 ? (
           <EmptyState title="Henüz varyant yok" description="Üretim bittiğinde burada görünecek." />

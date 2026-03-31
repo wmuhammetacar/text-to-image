@@ -6,7 +6,11 @@ import { ReturningSessionCard } from "../../apps/web/components/generator/return
 import { StarterPrompts } from "../../apps/web/components/generator/starter-prompts";
 import { ResultCard } from "../../apps/web/components/gallery/result-card";
 import { buildShareLoginRedirectPath } from "../../apps/web/components/gallery/public-generation-share-view";
-import { selectSuggestedQuickActionKeys } from "../../apps/web/components/generator/generation-detail-view";
+import {
+  isFirstSuccessRun,
+  selectSuggestedQuickActionKeys,
+  shouldShowInlineSharePrompt,
+} from "../../apps/web/components/generator/generation-detail-view";
 import { createProductEventTracker } from "../../apps/web/lib/product-events";
 import {
   executeQuickAction,
@@ -198,15 +202,19 @@ describe("UX + Magic Layer", () => {
             label: "Cinematic Şehir",
             text: "Neon yağmur altında sinematik bir sahne",
             creativeMode: "directed",
+            category: "Sinematik sahne",
           },
         ]}
         onSelect={() => undefined}
+        onGenerate={() => undefined}
       />,
     );
 
-    expect(markup).toContain("İlk üretimi başlat");
+    expect(markup).toContain("Ne üretmek istediğini seç");
     expect(markup).toContain("Cinematic Şehir");
     expect(markup).toContain("mod: directed");
+    expect(markup).toContain("Hemen üret");
+    expect(markup).toContain("Doldur");
   });
 
   it("retention returning session kartı render olur", () => {
@@ -238,6 +246,34 @@ describe("UX + Magic Layer", () => {
     const keys = selectSuggestedQuickActionKeys(["cinematic", "dramatic"]);
     expect(keys.length).toBeGreaterThanOrEqual(3);
     expect(keys).toContain("more_dramatic");
+  });
+
+  it("ilk başarı ve paylaşım yönlendirme kuralları doğru hesaplanır", () => {
+    const firstSuccess = isFirstSuccessRun({
+      activeRunState: "completed",
+      runCount: 1,
+      hasCompletedVariants: true,
+    });
+
+    const sharePromptVisible = shouldShowInlineSharePrompt({
+      activeRunState: "completed",
+      activeRunId: "00000000-0000-0000-0000-000000009901",
+      hasCompletedVariants: true,
+      visibility: "private",
+      dismissedSharePromptRunId: null,
+    });
+
+    const dismissedSharePrompt = shouldShowInlineSharePrompt({
+      activeRunState: "completed",
+      activeRunId: "00000000-0000-0000-0000-000000009901",
+      hasCompletedVariants: true,
+      visibility: "private",
+      dismissedSharePromptRunId: "00000000-0000-0000-0000-000000009901",
+    });
+
+    expect(firstSuccess).toBe(true);
+    expect(sharePromptVisible).toBe(true);
+    expect(dismissedSharePrompt).toBe(false);
   });
 
   it("product analytics tracker once davranışı aynı eventi tekrar göndermez", () => {
