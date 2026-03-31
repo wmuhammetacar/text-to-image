@@ -51,7 +51,7 @@ export const starterPresets: StarterPreset[] = [
   },
   {
     id: "dreamy_memory",
-    label: "Dreamy Anı",
+    label: "Rüya Anı",
     text: "Çocukluk yaz akşamını anımsatan, yumuşak ışıklı ve nostaljik bir sahne.",
     creativeMode: "balanced",
     controls: {
@@ -102,10 +102,10 @@ function mapErrorMessage(error: unknown): string {
     if (error.code === "INSUFFICIENT_CREDITS") {
       const paywallReason = error.details?.paywall_reason;
       if (paywallReason === "free_daily_limit") {
-        return "Günlük ücretsiz limit doldu. Devam etmek için Billing ekranından kredi satın alın.";
+        return "Günlük ücretsiz limit doldu. Devam etmek için Krediler ekranından kredi satın alın.";
       }
       if (paywallReason === "free_monthly_limit") {
-        return "Aylık ücretsiz limit doldu. Devam etmek için Billing ekranından kredi satın alın.";
+        return "Aylık ücretsiz limit doldu. Devam etmek için Krediler ekranından kredi satın alın.";
       }
       return "Yetersiz kredi. Yeni üretim başlatmak için kredi ekleyin.";
     }
@@ -167,9 +167,9 @@ export function GeneratorForm(): React.JSX.Element {
           return;
         }
         const isNewUser = history.items.length === 0;
-        const starterCardsEnabled = isFeatureEnabled("activation_starter_cards", {
-          fallback: true,
-        });
+      const starterCardsEnabled = isFeatureEnabled("activation_starter_cards", {
+        fallback: true,
+      });
         setShowActivation(isNewUser && starterCardsEnabled);
 
         const experimentVariant = resolveExperimentVariant({
@@ -292,12 +292,12 @@ export function GeneratorForm(): React.JSX.Element {
           <StarterPrompts
             headline={
               activationExperimentVariant === "copy_b"
-                ? "Hazır başla, ilk WOW sonucu 30 saniyede al"
+                ? "Hızlı başla, ilk güçlü sonucu hemen al"
                 : "İlk üretimi başlat"
             }
             description={
               activationExperimentVariant === "copy_b"
-                ? "Bu preset'lerden biriyle hızlıca üret, sonra variation/upscale ile kaliteyi yükselt."
+                ? "Bir başlangıç seç, sonra varyasyonlarla sonucu güçlendir."
                 : undefined
             }
             presets={starterPresets}
@@ -311,22 +311,22 @@ export function GeneratorForm(): React.JSX.Element {
         ) : null}
 
         <form
-          className="glass-panel soft-glow mx-auto w-full max-w-4xl rounded-[2rem] px-4 py-5 sm:px-8 sm:py-8"
+          className="glass-panel soft-glow mx-auto w-full max-w-4xl rounded-[2rem] px-4 py-6 sm:px-8 sm:py-9"
           onSubmit={onSubmit}
         >
-          <div className="mb-6 text-center">
+          <div className="mb-5 text-center">
             <p className="inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1 text-xs font-medium text-muted-foreground">
               <Sparkles className="h-3.5 w-3.5 text-cyan-300" />
-              AI Creative Canvas
+              Pixora yaratıcı yüzeyi
             </p>
             <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
-              Ne üretmek istediğini yaz, gerisini Pixora düşünsün
+              Fikrini yaz, Pixora görsel dilini kursun
             </h2>
           </div>
 
           <Textarea
             id="generation-text"
-            placeholder="Describe what you want to create..."
+            placeholder="Ne üretmek istediğini anlat..."
             value={text}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => {
@@ -335,12 +335,12 @@ export function GeneratorForm(): React.JSX.Element {
                 event.currentTarget.form?.requestSubmit();
               }
             }}
-            className="min-h-[160px] border-none bg-transparent px-0 text-lg text-white placeholder:text-muted-foreground/75 focus-visible:ring-0"
+            className="min-h-[170px] border-none bg-transparent px-0 text-lg leading-relaxed text-white placeholder:text-muted-foreground/75 focus-visible:ring-0"
             maxLength={5000}
             required
           />
-          <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-            <span>Enter ile üretim başlatılır · Shift+Enter yeni satır</span>
+          <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground/80">
+            <span>Enter üretir · Shift+Enter satır atlar</span>
             <span>{text.length}/5000</span>
           </div>
 
@@ -349,10 +349,10 @@ export function GeneratorForm(): React.JSX.Element {
               type="button"
               variant="ghost"
               onClick={() => setShowControls((current) => !current)}
-              className="rounded-full bg-white/7 px-4"
+              className="rounded-full bg-white/7 px-4 text-white/90"
             >
               <SlidersHorizontal className="mr-2 h-4 w-4" />
-              Kontroller
+              İnce ayar
             </Button>
 
             <div className="flex items-center gap-2">
@@ -362,7 +362,7 @@ export function GeneratorForm(): React.JSX.Element {
                 disabled={submitting}
                 className="rounded-full px-6 text-sm"
               >
-                {submitting ? "AI üretiyor..." : "Generate"}
+                {submitting ? "Pixora düşünüyor..." : "Üret"}
               </Button>
             </div>
           </div>
@@ -370,7 +370,7 @@ export function GeneratorForm(): React.JSX.Element {
           {showControls ? (
             <div className="mt-5 grid gap-3 rounded-2xl bg-white/6 p-4 sm:grid-cols-2">
               <div className="space-y-1">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Style</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Stil</p>
                 <Select
                   value={creativeMode}
                   onChange={(event) => {
@@ -380,14 +380,14 @@ export function GeneratorForm(): React.JSX.Element {
                     }
                   }}
                 >
-                  <option value="fast">Fast</option>
-                  <option value="balanced">Balanced</option>
-                  <option value="directed">Directed</option>
+                  <option value="fast">Hızlı</option>
+                  <option value="balanced">Dengeli</option>
+                  <option value="directed">Yönlendirilmiş</option>
                 </Select>
               </div>
 
               <div className="space-y-1">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Mood</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Atmosfer</p>
                 <Select
                   value={`${controls.darkness}:${controls.calmness}`}
                   onChange={(event) => {
@@ -399,16 +399,16 @@ export function GeneratorForm(): React.JSX.Element {
                     }));
                   }}
                 >
-                  <option value="-1:2">Calm</option>
-                  <option value="0:0">Neutral</option>
-                  <option value="2:-1">Intense</option>
-                  <option value="1:-2">Dark</option>
+                  <option value="-1:2">Sakin</option>
+                  <option value="0:0">Dengeli</option>
+                  <option value="2:-1">Yoğun</option>
+                  <option value="1:-2">Karanlık</option>
                 </Select>
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <p className="font-medium uppercase tracking-wide text-muted-foreground">Detail</p>
+                  <p className="font-medium uppercase tracking-wide text-muted-foreground">Detay</p>
                   <span>{controls.cinematic}</span>
                 </div>
                 <input
@@ -424,14 +424,14 @@ export function GeneratorForm(): React.JSX.Element {
               </div>
 
               <div className="space-y-1">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Ratio</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Oran</p>
                 <Select defaultValue="1:1" disabled>
                   <option value="1:1">1:1 (MVP)</option>
                 </Select>
               </div>
 
               <div className="space-y-1">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Image Count</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Varyant sayısı</p>
                 <Select
                   value={String(requestedImageCount)}
                   onChange={(event) => {
@@ -450,7 +450,7 @@ export function GeneratorForm(): React.JSX.Element {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <p className="font-medium uppercase tracking-wide text-muted-foreground">Nostalgia</p>
+                  <p className="font-medium uppercase tracking-wide text-muted-foreground">Nostalji</p>
                   <span>{controls.nostalgia}</span>
                 </div>
                 <input

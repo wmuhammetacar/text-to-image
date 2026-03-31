@@ -35,7 +35,6 @@ import {
   setLoadingVariant,
   setSelectedVariant,
 } from "../../lib/ui-state";
-import { formatTurkishDate } from "../../lib/utils";
 import { trackProductEvent, trackProductEventOnce } from "../../lib/product-events";
 import { EmptyState } from "../shared/empty-state";
 import { ErrorState } from "../shared/error-state";
@@ -87,10 +86,10 @@ function mapError(error: unknown): string {
     if (error.code === "INSUFFICIENT_CREDITS") {
       const paywallReason = error.details?.paywall_reason;
       if (paywallReason === "free_daily_limit") {
-        return "Günlük ücretsiz limit doldu. Billing ekranından kredi satın alarak devam edebilirsiniz.";
+        return "Günlük ücretsiz limit doldu. Krediler ekranından kredi satın alarak devam edebilirsiniz.";
       }
       if (paywallReason === "free_monthly_limit") {
-        return "Aylık ücretsiz limit doldu. Billing ekranından kredi satın alarak devam edebilirsiniz.";
+        return "Aylık ücretsiz limit doldu. Krediler ekranından kredi satın alarak devam edebilirsiniz.";
       }
       return "Yetersiz kredi. Aksiyon başlatmak için kredi ekleyin.";
     }
@@ -100,7 +99,7 @@ function mapError(error: unknown): string {
     }
 
     if (error.code === "GENERATION_BLOCKED") {
-      return "Bu generation blocked durumda. Güvenli metinle yeni run başlatın.";
+      return "Bu üretim engelli durumda. Güvenli metinle yeni run başlatın.";
     }
 
     if (error.code === "RESOURCE_NOT_FOUND") {
@@ -125,29 +124,14 @@ function mapError(error: unknown): string {
   return "Beklenmeyen bir hata oluştu.";
 }
 
-function buildLineageTrail(variant: GenerationDetailResponseDto["variants"][number]): string[] {
-  if (variant.parent_variant_id === null) {
-    return ["Original"];
-  }
-
-  const items = ["Original", "Variation"];
-  if (variant.is_upscaled) {
-    items.push("Upscale");
-  }
-  if (variant.branch_depth > 1) {
-    items.push(`Branch ${variant.branch_depth}`);
-  }
-  return items;
-}
-
 function getVariantOriginLabel(variant: GenerationDetailResponseDto["variants"][number]): string {
   if (variant.parent_variant_id === null) {
     return "Orijinal";
   }
   if (variant.is_upscaled) {
-    return "Upscale";
+    return "Yükseltme";
   }
-  return variant.variation_type ?? "Variation";
+  return variant.variation_type ?? "Varyasyon";
 }
 
 export function selectSuggestedQuickActionKeys(styleTags: string[]): string[] {
@@ -156,7 +140,7 @@ export function selectSuggestedQuickActionKeys(styleTags: string[]): string[] {
     return ["more_dramatic", "make_darker", "increase_detail"];
   }
   if (normalized.some((entry) => entry.includes("surreal"))) {
-    return ["more_stylized", "change_environment", "make_darker"];
+    return ["change_environment", "make_darker", "more_minimal"];
   }
   return ["more_dramatic", "make_darker", "change_environment"];
 }
@@ -377,10 +361,10 @@ export function GenerationDetailView(props: { generationId: string }): React.JSX
 const terminalMessage = detail === null ? null : getGenerationTerminalMessage(detail);
 const loadingMessage = detail === null ? null : getLoadingExperienceMessage(detail);
   const loadingSteps: Array<{ key: string; label: string }> = [
-    { key: "analyzing", label: "Understanding your idea..." },
-    { key: "planning", label: "Designing composition..." },
-    { key: "detail", label: "Rendering details..." },
-    { key: "enhancement", label: "Enhancing output..." },
+    { key: "analyzing", label: "Fikrin çözülüyor..." },
+    { key: "planning", label: "Kompozisyon kuruluyor..." },
+    { key: "detail", label: "Detaylar işleniyor..." },
+    { key: "enhancement", label: "Son dokunuşlar atılıyor..." },
   ];
 
   const activePassType = useMemo(() => {
@@ -519,7 +503,7 @@ const loadingMessage = detail === null ? null : getLoadingExperienceMessage(deta
         payload: parsed.data,
       });
 
-      setActionMessage("Refine run kuyruğa alındı.");
+      setActionMessage("Refine isteği sıraya alındı.");
       setRefineText("");
       setUiState((current) =>
         setLastAction(current, {
@@ -551,18 +535,18 @@ const loadingMessage = detail === null ? null : getLoadingExperienceMessage(deta
           setLoadingVariant(current, null),
           {
             type: "upscale",
-            label: "Upscale",
+            label: "Yükseltme",
             runId: response.runId,
           },
         )
       );
-      setActionMessage("Upscale kuyruğa alındı.");
+      setActionMessage("Yüksek çözünürlük isteği sıraya alındı.");
       trackProductEventOnce("first_upscale", {
         generation_id: props.generationId,
         variant_id: variant.image_variant_id,
       });
       setInlineNotifications((current) => [
-        "Upscale isteği alındı. Sonuç hazır olduğunda burada görünecek.",
+        "Yükseltme isteği alındı. Sonuç hazır olduğunda burada belirecek.",
         ...current,
       ].slice(0, 3));
       setRefreshToken((value) => value + 1);
@@ -606,7 +590,7 @@ const loadingMessage = detail === null ? null : getLoadingExperienceMessage(deta
           },
         )
       );
-      setActionMessage(`${action.label} kuyruğa alındı.`);
+      setActionMessage(`${action.label} isteği sıraya alındı.`);
       trackProductEvent("suggestion_used", {
         source: "generation_detail",
         suggestion_key: action.key,
@@ -654,7 +638,7 @@ const loadingMessage = detail === null ? null : getLoadingExperienceMessage(deta
 
       if (response.visibility === "private") {
         setShareLink(null);
-        setActionMessage("Generation private olarak güncellendi.");
+        setActionMessage("Görünürlük gizli olarak güncellendi.");
       } else if (typeof window !== "undefined") {
         const nextShareLink = `${window.location.origin}/share/${response.share_slug}`;
         setShareLink(nextShareLink);
@@ -721,104 +705,52 @@ const loadingMessage = detail === null ? null : getLoadingExperienceMessage(deta
   }
 
   return (
-    <div className="space-y-5">
-      <Card className="rounded-3xl">
-        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-2">
-            <CardTitle className="text-xl text-white">Creative Run</CardTitle>
-            <CardDescription className="break-all text-muted-foreground">
-              generation_id: {detail.generation_id}
-            </CardDescription>
-          </div>
-          <RunStateBadge state={detail.active_run_state} />
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          {runUi !== null ? <p className="text-white/85">{runUi.description}</p> : null}
-          {terminalMessage !== null ? (
-            <p className="rounded-2xl bg-white/7 px-3 py-2 text-white/90">{terminalMessage}</p>
-          ) : null}
-
-          {loadingMessage !== null ? (
-            <div className="rounded-2xl bg-white/6 p-3">
-              <p className="mb-3 text-sm font-medium text-primary">{loadingMessage}</p>
-              <div className="space-y-2">
-                {loadingSteps.map((step, index) => {
-                  const completed = activeLoadingStepIndex > index;
-                  const active = activeLoadingStepIndex === index;
-                  return (
-                    <div key={step.key} className="flex items-center gap-3">
-                      <span
-                        className={[
-                          "h-2.5 w-2.5 rounded-full transition",
-                          completed ? "bg-cyan-300" : active ? "bg-primary shadow-[0_0_16px_rgba(108,59,255,0.9)]" : "bg-white/20",
-                        ].join(" ")}
-                      />
-                      <p className={completed || active ? "text-white" : "text-muted-foreground"}>
-                        {step.label}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="ai-gradient-line mt-3 h-1 w-full animate-pulse rounded-full" />
-            </div>
-          ) : null}
-
-          {pollError !== null ? (
-            <p className="rounded-xl bg-amber-400/15 px-3 py-2 text-amber-200">{pollError}</p>
-          ) : null}
-
-          {inlineNotifications.length > 0 ? (
-            <div className="space-y-2">
-              {inlineNotifications.map((notification, index) => (
-                <p
-                  key={`${notification}-${index}`}
-                  className="rounded-xl bg-emerald-400/15 px-3 py-2 text-xs text-emerald-200"
-                >
-                  {notification}
-                </p>
-              ))}
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.9fr)_minmax(0,1fr)]">
-        <div className="space-y-5">
+    <div className="space-y-4">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,2.25fr)_minmax(0,1fr)]">
+        <div className="space-y-4">
           <div ref={variantsSectionRef}>
-            <Card className="overflow-hidden rounded-3xl">
+            <Card className="overflow-hidden rounded-[2rem]">
               <CardContent className="p-0">
-                <div className="relative aspect-[4/3] bg-black/40">
-                  {selectedVariant !== null && selectedVariant.status === "completed" && selectedVariant.signed_url !== null ? (
+                <div className="group relative aspect-[16/10] bg-black/45">
+                  {selectedVariant !== null &&
+                  selectedVariant.status === "completed" &&
+                  selectedVariant.signed_url !== null ? (
                     <img
                       src={selectedVariant.signed_url}
                       alt={`Seçili varyant ${selectedVariant.variant_index}`}
-                      className="h-full w-full object-cover transition duration-500 hover:scale-[1.02]"
+                      className="image-fade-in h-full w-full object-cover transition duration-500 group-hover:scale-[1.015]"
                     />
                   ) : (
                     <div className="grid h-full place-items-center px-4 text-center text-sm text-muted-foreground">
-                      Varyant üretimi henüz hazır değil.
+                      Görsel henüz hazır değil.
                     </div>
                   )}
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/70 to-transparent" />
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/60 to-transparent" />
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
+
+                  <div className="absolute left-4 top-4 flex items-center gap-2">
+                    <RunStateBadge state={detail.active_run_state} />
+                    {variantScoreById.get(selectedVariant?.image_variant_id ?? "")?.is_best ? (
+                      <span className="rounded-full bg-primary/65 px-2 py-1 text-[11px] text-white">
+                        En güçlü varyant
+                      </span>
+                    ) : null}
+                  </div>
+
                   {selectedVariant !== null ? (
-                    <div className="absolute bottom-0 left-0 right-0 flex flex-wrap items-center justify-between gap-2 p-4 text-xs text-white/90">
+                    <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3 text-xs text-white/90">
                       <div className="flex items-center gap-2">
-                        <VariantOriginIcon variant={selectedVariant} />
-                        <span>{getVariantOriginLabel(selectedVariant)}</span>
-                        <span className="rounded-full bg-white/15 px-2 py-1">
-                          depth {selectedVariant.branch_depth}
+                        <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-1">
+                          <VariantOriginIcon variant={selectedVariant} />
+                          {getVariantOriginLabel(selectedVariant)}
                         </span>
                         {selectedVariant.is_upscaled ? (
-                          <span className="rounded-full bg-cyan-400/25 px-2 py-1 text-cyan-100">Upscale</span>
+                          <span className="rounded-full bg-cyan-400/25 px-2 py-1 text-cyan-100">Yükseltildi</span>
                         ) : null}
                       </div>
-                      <div className="flex items-center gap-2">
-                        {variantScoreById.get(selectedVariant.image_variant_id)?.is_best ? (
-                          <span className="rounded-full bg-primary/50 px-2 py-1">Best variant</span>
-                        ) : null}
-                        <span className="uppercase">{selectedVariant.status}</span>
-                      </div>
+                      <span className="rounded-full bg-black/40 px-2 py-1">
+                        Varyant #{selectedVariant.variant_index}
+                      </span>
                     </div>
                   ) : null}
                 </div>
@@ -826,182 +758,202 @@ const loadingMessage = detail === null ? null : getLoadingExperienceMessage(deta
             </Card>
           </div>
 
-          <Card className="rounded-3xl">
-            <CardHeader>
-              <CardTitle>Variations</CardTitle>
-              <CardDescription>Hero görüntüyü değiştirmek için bir varyanta tıkla.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {sortedVariants.length === 0 ? (
-                <EmptyState
-                  title="Henüz varyant yok"
-                  description="Pipeline tamamlandığında burada görünecek."
-                />
-              ) : (
-                <div className="-mx-2 flex snap-x gap-3 overflow-x-auto px-2 pb-1">
-                  {sortedVariants.map((variant) => {
-                    const activeFavorite = favoriteIds.has(variant.image_variant_id) || isFavorited(variant.image_variant_id);
-                    const isSelected = variant.image_variant_id === selectedVariant?.image_variant_id;
-                    const isHighlighted = variant.image_variant_id === highlightedVariantId;
-                    const loadingThisVariant = uiState.loadingVariantId === variant.image_variant_id;
-                    const variantScore = variantScoreById.get(variant.image_variant_id);
+          {loadingMessage !== null ? (
+            <Card className="rounded-2xl">
+              <CardContent className="space-y-3 p-4">
+                <p className="text-sm font-medium text-primary">{loadingMessage}</p>
+                <div className="space-y-2">
+                  {loadingSteps.map((step, index) => {
+                    const completed = activeLoadingStepIndex > index;
+                    const active = activeLoadingStepIndex === index;
                     return (
-                      <div
-                        key={variant.image_variant_id}
-                        className={[
-                          "glass-panel w-56 shrink-0 snap-start overflow-hidden rounded-2xl transition duration-200",
-                          isSelected ? "soft-glow -translate-y-0.5" : "hover:-translate-y-0.5 hover:bg-white/10",
-                          isHighlighted ? "ring-2 ring-cyan-300/70" : "",
-                        ].join(" ")}
-                      >
-                        <button
-                          type="button"
-                          className="block w-full text-left"
-                          onClick={() => setUiState((current) => setSelectedVariant(current, variant.image_variant_id))}
-                        >
-                          <div className="aspect-square bg-white/5">
-                            {variant.status === "completed" && variant.signed_url !== null ? (
-                              <img
-                                src={variant.signed_url}
-                                alt={`Varyant ${variant.variant_index}`}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <div className="grid h-full place-items-center px-2 text-center text-xs text-muted-foreground">
-                                {variant.status === "blocked" ? "Blocked" : "Görsel üretilemedi"}
-                              </div>
-                            )}
-                          </div>
-                        </button>
-                        <div className="space-y-2 p-3 text-xs">
-                          <p className="font-medium text-white">Varyant #{variant.variant_index}</p>
-                          <p className="line-clamp-1 text-muted-foreground">{buildLineageTrail(variant).join(" → ")}</p>
-                          {variantScore !== undefined ? (
-                            <p className="text-muted-foreground">Score {variantScore.total_score.toFixed(2)}</p>
-                          ) : null}
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              size="sm"
-                              variant={isSelected ? "secondary" : "ghost"}
-                              className="h-8 rounded-full px-3 text-xs"
-                              onClick={() => setUiState((current) => setSelectedVariant(current, variant.image_variant_id))}
-                            >
-                              {isSelected ? "Selected" : "Select"}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 rounded-full bg-white/8 px-3 text-xs"
-                              disabled={
-                                variant.status !== "completed" ||
-                                loadingThisVariant ||
-                                detail.generation_state === "blocked"
-                              }
-                              onClick={() => void onUpscale(variant)}
-                            >
-                              {loadingThisVariant ? "Upscale..." : "Upscale"}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 rounded-full bg-white/8 px-3 text-xs"
-                              onClick={() => void onToggleFavorite(variant)}
-                            >
-                              {activeFavorite ? "Favoride" : "Favoriye ekle"}
-                            </Button>
-                          </div>
-                        </div>
+                      <div key={step.key} className="flex items-center gap-3 text-sm">
+                        <span
+                          className={[
+                            "h-2.5 w-2.5 rounded-full transition",
+                            completed
+                              ? "bg-cyan-300"
+                              : active
+                                ? "bg-primary shadow-[0_0_14px_rgba(108,59,255,0.9)]"
+                                : "bg-white/20",
+                          ].join(" ")}
+                        />
+                        <p className={completed || active ? "text-white/95" : "text-muted-foreground"}>
+                          {step.label}
+                        </p>
                       </div>
                     );
                   })}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                <div className="ai-gradient-line h-1 w-full animate-pulse rounded-full" />
+              </CardContent>
+            </Card>
+          ) : null}
 
-          <Card className="rounded-3xl">
-            <CardHeader>
-              <CardTitle>Refine</CardTitle>
-              <CardDescription>Bu sonucu bozmadan yeni bir yaratıcı run aç.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-4" onSubmit={onSubmitRefine}>
-                <Textarea
-                  id="refine-text"
-                  value={refineText}
-                  onChange={(event) => setRefineText(event.target.value)}
-                  maxLength={280}
-                  placeholder="Bu sahneyi koru ama daha sinematik yap..."
-                  required
-                  className="min-h-24"
-                />
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Select
-                    id="refine-count"
-                    value={String(refineCount)}
-                    onChange={(event) => {
-                      const value = Number.parseInt(event.target.value, 10);
-                      if (value >= 1 && value <= 4) {
-                        setRefineCount(value);
-                      }
-                    }}
-                  >
-                    <option value="1">1 varyant</option>
-                    <option value="2">2 varyant</option>
-                    <option value="3">3 varyant</option>
-                    <option value="4">4 varyant</option>
-                  </Select>
-                  <Button type="submit" disabled={!canRefine || refineSubmitting || uiState.loadingVariantId !== null}>
-                    {refineSubmitting ? "Refine başlatılıyor..." : "Refine"}
-                  </Button>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {([
-                    ["darkness", "Darkness"],
-                    ["calmness", "Calmness"],
-                    ["nostalgia", "Nostalgia"],
-                    ["cinematic", "Cinematic"],
-                  ] as const).map(([key, label]) => (
-                    <div key={key} className="space-y-1">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{label}</span>
-                        <span>{refineControls[key]}</span>
+          {pollError !== null ? (
+            <p className="rounded-xl bg-amber-400/15 px-3 py-2 text-sm text-amber-200">{pollError}</p>
+          ) : null}
+
+          {inlineNotifications.length > 0 ? (
+            <p className="rounded-xl bg-emerald-400/15 px-3 py-2 text-sm text-emerald-200">
+              {inlineNotifications[0]}
+            </p>
+          ) : null}
+
+          <div className="glass-panel rounded-3xl px-3 py-3">
+            {sortedVariants.length === 0 ? (
+              <EmptyState
+                title="Henüz varyant yok"
+                description="Üretim bittiğinde burada görünecek."
+              />
+            ) : (
+              <div className="flex snap-x gap-3 overflow-x-auto pb-1">
+                {sortedVariants.map((variant) => {
+                  const isSelected = variant.image_variant_id === selectedVariant?.image_variant_id;
+                  const isHighlighted = variant.image_variant_id === highlightedVariantId;
+                  const loadingThisVariant = uiState.loadingVariantId === variant.image_variant_id;
+                  return (
+                    <button
+                      type="button"
+                      key={variant.image_variant_id}
+                      onClick={() => setUiState((current) => setSelectedVariant(current, variant.image_variant_id))}
+                      className={[
+                        "relative w-32 shrink-0 snap-start overflow-hidden rounded-2xl transition duration-200",
+                        isSelected
+                          ? "soft-glow ring-1 ring-primary/70"
+                          : "opacity-80 hover:-translate-y-0.5 hover:opacity-100",
+                        isHighlighted ? "ring-2 ring-cyan-300/70" : "",
+                      ].join(" ")}
+                    >
+                      <div className="aspect-square bg-white/8">
+                        {variant.status === "completed" && variant.signed_url !== null ? (
+                          <img
+                            src={variant.signed_url}
+                            alt={`Varyant ${variant.variant_index}`}
+                            className="image-fade-in h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="grid h-full place-items-center text-[11px] text-muted-foreground">
+                            {variant.status === "blocked" ? "Engelli" : "Hazırlanıyor"}
+                          </div>
+                        )}
                       </div>
-                      <input
-                        id={`refine-${key}`}
-                        type="range"
-                        min={-2}
-                        max={2}
-                        step={1}
-                        value={refineControls[key]}
-                        onChange={(event) => {
-                          const value = toControlValue(event.target.value);
-                          setRefineControls((current) => ({ ...current, [key]: value }));
-                        }}
-                        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/15"
-                      />
+                      <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/55 px-2 py-1 text-[11px] text-white/90">
+                        <span className="inline-flex items-center gap-1">
+                          <VariantOriginIcon variant={variant} />
+                          #{variant.variant_index}
+                        </span>
+                        {loadingThisVariant ? <span>...</span> : null}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <details className="glass-panel rounded-3xl px-4 py-3">
+            <summary className="cursor-pointer list-none text-sm text-muted-foreground">
+              Bu kareyi koruyup yeni bir yön dene
+            </summary>
+            <form className="mt-4 space-y-4" onSubmit={onSubmitRefine}>
+              <Textarea
+                id="refine-text"
+                value={refineText}
+                onChange={(event) => setRefineText(event.target.value)}
+                maxLength={280}
+                placeholder="Sahneyi koru, ışığı daha sinematik yap..."
+                required
+                className="min-h-24"
+              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Select
+                  id="refine-count"
+                  value={String(refineCount)}
+                  onChange={(event) => {
+                    const value = Number.parseInt(event.target.value, 10);
+                    if (value >= 1 && value <= 4) {
+                      setRefineCount(value);
+                    }
+                  }}
+                >
+                  <option value="1">1 varyant</option>
+                  <option value="2">2 varyant</option>
+                  <option value="3">3 varyant</option>
+                  <option value="4">4 varyant</option>
+                </Select>
+                <Button type="submit" disabled={!canRefine || refineSubmitting || uiState.loadingVariantId !== null}>
+                  {refineSubmitting ? "Sıraya alınıyor..." : "Refine başlat"}
+                </Button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {([
+                  ["darkness", "Karanlık"],
+                  ["calmness", "Sakinlik"],
+                  ["nostalgia", "Nostalji"],
+                  ["cinematic", "Sinematik"],
+                ] as const).map(([key, label]) => (
+                  <div key={key} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{label}</span>
+                      <span>{refineControls[key]}</span>
                     </div>
-                  ))}
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+                    <input
+                      id={`refine-${key}`}
+                      type="range"
+                      min={-2}
+                      max={2}
+                      step={1}
+                      value={refineControls[key]}
+                      onChange={(event) => {
+                        const value = toControlValue(event.target.value);
+                        setRefineControls((current) => ({ ...current, [key]: value }));
+                      }}
+                      className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/15"
+                    />
+                  </div>
+                ))}
+              </div>
+            </form>
+          </details>
         </div>
 
-        <div className="space-y-4 xl:sticky xl:top-4 xl:self-start">
+        <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
           <Card className="rounded-3xl">
             <CardHeader>
-              <CardTitle>AI Suggestions</CardTitle>
-              <CardDescription>Tek tıkla yaratıcı yön değiştir.</CardDescription>
+              <CardTitle>Pixora önerileri</CardTitle>
+              <CardDescription>Tek dokunuşla yeni yorumlar üret.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {selectedVariant === null ? (
                 <EmptyState
-                  title="Varyant seç"
-                  description="Önce bir varyant seçerek aksiyon başlat."
+                  title="Önce bir kare seç"
+                  description="Seçili kare üzerinden öneriler çalışır."
                 />
               ) : (
                 <>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 rounded-full bg-white/8 px-3 text-xs"
+                      disabled={!canRunVariantActions || uiState.loadingVariantId !== null}
+                      onClick={() => void onUpscale(selectedVariant)}
+                    >
+                      Yükselt
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 rounded-full bg-white/8 px-3 text-xs"
+                      onClick={() => void onToggleFavorite(selectedVariant)}
+                    >
+                      {favoriteIds.has(selectedVariant.image_variant_id) || isFavorited(selectedVariant.image_variant_id)
+                        ? "Favoride"
+                        : "Favoriye al"}
+                    </Button>
+                  </div>
+
                   <QuickActions
                     variantId={selectedVariant.image_variant_id}
                     disabled={!canRunVariantActions || refineSubmitting}
@@ -1016,7 +968,7 @@ const loadingMessage = detail === null ? null : getLoadingExperienceMessage(deta
                           },
                         )
                       );
-                      setActionMessage(`${params.actionLabel} queued.`);
+                      setActionMessage(`${params.actionLabel} isteği sıraya alındı.`);
                       trackProductEvent("remix_cta_clicked", {
                         source: "generation_detail_quick_action",
                         variation_type: params.variationType,
@@ -1033,13 +985,14 @@ const loadingMessage = detail === null ? null : getLoadingExperienceMessage(deta
                       setUiState((current) => setLoadingVariant(current, variantId));
                     }}
                   />
-                  <div className="grid gap-2">
+
+                  <div className="flex flex-wrap gap-2">
                     {suggestedActions.map((action) => (
                       <Button
                         key={`suggestion-${action.key}`}
                         type="button"
                         variant="ghost"
-                        className="justify-start rounded-full bg-white/8 px-3 text-xs hover:bg-white/14"
+                        className="h-8 rounded-full bg-white/8 px-3 text-xs hover:-translate-y-0.5 hover:bg-white/14"
                         disabled={!canRunVariantActions || uiState.loadingVariantId !== null}
                         onClick={() => void onSuggestedAction(action.key)}
                       >
@@ -1047,9 +1000,10 @@ const loadingMessage = detail === null ? null : getLoadingExperienceMessage(deta
                       </Button>
                     ))}
                   </div>
+
                   {uiState.lastAction !== null ? (
                     <p className="rounded-xl bg-white/6 px-3 py-2 text-xs text-muted-foreground">
-                      Son aksiyon: {uiState.lastAction.label} · run_id: {uiState.lastAction.runId}
+                      Son adım: {uiState.lastAction.label}
                     </p>
                   ) : null}
                 </>
@@ -1066,12 +1020,12 @@ const loadingMessage = detail === null ? null : getLoadingExperienceMessage(deta
 
           <Card className="rounded-3xl">
             <CardHeader>
-              <CardTitle>Share</CardTitle>
-              <CardDescription>Public veya unlisted yap, linki paylaş.</CardDescription>
+              <CardTitle>Paylaşım</CardTitle>
+              <CardDescription>Bu sonucu görünür yap ve bağlantıyı al.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-2">
-                <Label htmlFor="generation-visibility">Visibility</Label>
+                <Label htmlFor="generation-visibility">Görünürlük</Label>
                 <Select
                   id="generation-visibility"
                   value={visibilityDraft}
@@ -1082,9 +1036,9 @@ const loadingMessage = detail === null ? null : getLoadingExperienceMessage(deta
                     }
                   }}
                 >
-                  <option value="private">private</option>
-                  <option value="unlisted">unlisted</option>
-                  <option value="public">public</option>
+                  <option value="private">Gizli</option>
+                  <option value="unlisted">Bağlantıyla açık</option>
+                  <option value="public">Herkese açık</option>
                 </Select>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1093,23 +1047,26 @@ const loadingMessage = detail === null ? null : getLoadingExperienceMessage(deta
                 </Button>
                 {shareLink !== null ? (
                   <Button type="button" variant="outline" onClick={() => void onCopyShareLink()}>
-                    Linki Kopyala
+                    Bağlantıyı kopyala
                   </Button>
                 ) : null}
               </div>
               <p className="break-all rounded-xl bg-white/6 px-3 py-2 text-xs text-muted-foreground">
-                {shareLink ?? "Private modda paylaşım bağlantısı kapalı."}
+                {shareLink ?? "Henüz paylaşım bağlantısı yok."}
               </p>
-              <div className="grid gap-2">
-                {detail.runs.map((run) => (
-                  <p key={run.run_id} className="rounded-xl bg-white/6 px-3 py-2 text-xs text-muted-foreground">
-                    {run.pipeline_state} · {formatTurkishDate(run.created_at)}
-                  </p>
-                ))}
-              </div>
+              {runUi !== null ? (
+                <p className="rounded-xl bg-white/6 px-3 py-2 text-xs text-muted-foreground">
+                  {runUi.description}
+                </p>
+              ) : null}
+              {terminalMessage !== null ? (
+                <p className="rounded-xl bg-white/6 px-3 py-2 text-xs text-muted-foreground">
+                  {terminalMessage}
+                </p>
+              ) : null}
             </CardContent>
           </Card>
-        </div>
+        </aside>
       </div>
 
       {actionMessage !== null ? (
@@ -1126,7 +1083,7 @@ const loadingMessage = detail === null ? null : getLoadingExperienceMessage(deta
                   }
                 }}
               >
-                Billing'e git
+                Kredilere git
               </Button>
             ) : null}
             <div className="flex items-center gap-2">

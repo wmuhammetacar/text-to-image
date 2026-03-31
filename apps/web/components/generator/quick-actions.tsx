@@ -19,13 +19,13 @@ export interface QuickActionDefinition {
 export const quickActionDefinitions: QuickActionDefinition[] = [
   {
     key: "more_dramatic",
-    label: "Make it more cinematic",
+    label: "Daha sinematik",
     variationType: "more_dramatic",
     variationParameters: {},
   },
   {
     key: "make_darker",
-    label: "Make it darker",
+    label: "Daha karanlık",
     variationType: "change_mood",
     variationParameters: {
       mood: "dark",
@@ -33,19 +33,19 @@ export const quickActionDefinitions: QuickActionDefinition[] = [
   },
   {
     key: "more_minimal",
-    label: "Make it more minimal",
+    label: "Daha sade",
     variationType: "more_minimal",
     variationParameters: {},
   },
   {
     key: "more_realistic",
-    label: "Make it more realistic",
+    label: "Daha gerçekçi",
     variationType: "more_realistic",
     variationParameters: {},
   },
   {
     key: "change_environment",
-    label: "Change environment",
+    label: "Ortamı dönüştür",
     variationType: "change_environment",
     variationParameters: {
       environment: "rainy neon alley",
@@ -53,7 +53,7 @@ export const quickActionDefinitions: QuickActionDefinition[] = [
   },
   {
     key: "change_lighting",
-    label: "Change lighting",
+    label: "Işığı değiştir",
     variationType: "change_lighting",
     variationParameters: {
       lighting: "soft cinematic side-light",
@@ -61,7 +61,7 @@ export const quickActionDefinitions: QuickActionDefinition[] = [
   },
   {
     key: "increase_detail",
-    label: "Increase detail",
+    label: "Detayı yükselt",
     variationType: "increase_detail",
     variationParameters: {},
   },
@@ -157,7 +157,7 @@ function mapQuickActionError(error: unknown): string {
       return "Aktif run bitmeden yeni aksiyon başlatılamaz.";
     }
     if (error.code === "GENERATION_BLOCKED") {
-      return "Bu içerik blocked durumda, aksiyon uygulanamaz.";
+      return "Bu içerik engelli durumda, aksiyon uygulanamaz.";
     }
     if (error.code === "SAFETY_HARD_BLOCK" || error.code === "SAFETY_SOFT_BLOCK") {
       return "Aksiyon güvenlik politikası nedeniyle engellendi.";
@@ -212,13 +212,13 @@ export function QuickActions(props: {
   };
 
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
+    <div className="flex flex-wrap gap-2">
       {quickActionDefinitions.map((action) => (
         <Button
           key={action.key}
           size="sm"
           variant="ghost"
-          className="justify-start rounded-full bg-white/8 px-3 text-xs text-white/90 hover:bg-white/14"
+          className="h-8 justify-start rounded-full bg-white/8 px-3 text-xs text-white/90 hover:-translate-y-0.5 hover:bg-white/14"
           disabled={props.disabled || props.variantId === null || loadingActionKey !== null}
           onClick={() => void onAction(action)}
           data-testid={`quick-action-${action.key}`}

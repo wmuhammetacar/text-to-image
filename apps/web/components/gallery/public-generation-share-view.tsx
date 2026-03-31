@@ -242,7 +242,7 @@ export function PublicGenerationShareView(props: {
       <Card className="rounded-3xl">
         <CardHeader>
           <CardTitle>Paylaşım yükleniyor</CardTitle>
-          <CardDescription>Public generation verisi hazırlanıyor.</CardDescription>
+          <CardDescription>Görsel hazırlanıyor.</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -267,7 +267,7 @@ export function PublicGenerationShareView(props: {
               <img
                 src={bestVariant.signed_url}
                 alt={detail.summary}
-                className="h-full w-full object-cover"
+                className="image-fade-in h-full w-full object-cover"
               />
             ) : (
               <div className="grid h-full place-items-center text-sm text-muted-foreground">
@@ -277,7 +277,7 @@ export function PublicGenerationShareView(props: {
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
             <div className="absolute bottom-0 left-0 right-0 space-y-3 p-6">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="default">Pixora Share</Badge>
+                <Badge variant="default">Pixora</Badge>
                 <Badge variant="muted">{detail.visibility}</Badge>
                 <span className="text-xs text-white/80">
                   {detail.creator_display_name} · @{detail.creator_profile_handle}
@@ -294,7 +294,7 @@ export function PublicGenerationShareView(props: {
                   onClick={() => void onRemix("manual")}
                   disabled={remixSubmitting || !detail.remix.enabled || detail.remix.base_variant_id === null}
                 >
-                  {remixSubmitting ? "Remix başlatılıyor..." : "Remix this image"}
+                  {remixSubmitting ? "Remix başlatılıyor..." : "Bu görseli remixle"}
                 </Button>
                 <Button
                   type="button"
@@ -313,7 +313,7 @@ export function PublicGenerationShareView(props: {
                     router.push("/login?next=%2F");
                   }}
                 >
-                  Create your own
+                  Kendi görselini üret
                 </Button>
               </div>
             </div>
@@ -324,15 +324,15 @@ export function PublicGenerationShareView(props: {
       <Card className="rounded-3xl">
         <CardHeader className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="default">Pixora Share</Badge>
+            <Badge variant="default">Pixora</Badge>
             <Badge variant="muted">{detail.visibility}</Badge>
             <span className="text-xs text-muted-foreground">
               {detail.creator_display_name} · @{detail.creator_profile_handle}
             </span>
           </div>
-          <CardTitle className="text-xl">Remix Controls</CardTitle>
+          <CardTitle className="text-xl">Remix kontrolü</CardTitle>
           <CardDescription>
-            Variation türünü seçip aynı kaynaktan kendi versiyonunu üret.
+            Aynı kaynaktan kendi yorumunu üret.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -352,7 +352,7 @@ export function PublicGenerationShareView(props: {
                   router.push(`/gallery?tag=${encodeURIComponent(tag)}&sort=trending`);
                 }}
               >
-                Explore similar
+                Benzerlerini keşfet
               </Button>
             ) : null}
           </div>
@@ -371,7 +371,7 @@ export function PublicGenerationShareView(props: {
           </div>
           {remixCompletedSource !== null ? (
             <p className="mt-3 rounded-xl bg-emerald-400/15 px-3 py-2 text-sm text-emerald-200">
-              You remixed this from @{remixCompletedSource}. Kendi versiyonun oluşturuldu.
+              @{remixCompletedSource} kaynağından remixlendi. Yeni versiyonun hazır.
             </p>
           ) : null}
           <div className="mt-4 space-y-3">
@@ -398,7 +398,7 @@ export function PublicGenerationShareView(props: {
               onClick={() => void onRemix()}
               disabled={remixSubmitting || !detail.remix.enabled || detail.remix.base_variant_id === null}
             >
-              {remixSubmitting ? "Remix başlatılıyor..." : "Remix this image"}
+              {remixSubmitting ? "Remix başlatılıyor..." : "Bu görseli remixle"}
             </Button>
             {remixMessage !== null ? (
               <p className="rounded-xl bg-danger/15 px-3 py-2 text-sm text-danger">
@@ -414,12 +414,12 @@ export function PublicGenerationShareView(props: {
           <CardHeader>
             <CardTitle>Remix Kökeni</CardTitle>
             <CardDescription>
-              Bu üretim başka bir public kaynaktan türedi.
+              Bu üretim başka bir herkese açık kaynaktan türedi.
             </CardDescription>
           </CardHeader>
           <CardContent className="text-sm">
             <p className="rounded-xl bg-white/8 px-3 py-2">
-              You remixed this from generation {detail.lineage.remix_source_generation_id}
+              Kaynak üretim: {detail.lineage.remix_source_generation_id}
             </p>
           </CardContent>
         </Card>
@@ -427,55 +427,58 @@ export function PublicGenerationShareView(props: {
 
       <Card className="rounded-3xl">
         <CardHeader>
-          <CardTitle>Lineage ve Sosyal Kanıt</CardTitle>
+          <CardTitle>Soy ağacı ve sosyal kanıt</CardTitle>
           <CardDescription>
-            Bu üretimin türeme kökü ve ondan türeyen public zincir özeti.
+            Bu üretimin türeme kökü ve ondan türeyen açık zincir özeti.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div className="grid gap-2 md:grid-cols-2">
             <p className="rounded-xl bg-white/8 px-3 py-2">
-              Remix depth: {detail.lineage.remix_depth}
+              Remix derinliği: {detail.lineage.remix_depth}
             </p>
             <p className="rounded-xl bg-white/8 px-3 py-2">
-              Direct remix: {detail.social_proof.remix_count}
+              Doğrudan remix: {detail.social_proof.remix_count}
             </p>
             <p className="rounded-xl bg-white/8 px-3 py-2">
-              Branch count: {detail.social_proof.branch_count}
+              Dal sayısı: {detail.social_proof.branch_count}
             </p>
             <p className="rounded-xl bg-white/8 px-3 py-2">
-              Creator public generation: {detail.social_proof.creator_public_generation_count}
+              Üretici açık üretim: {detail.social_proof.creator_public_generation_count}
             </p>
           </div>
 
-          <div className="space-y-2 rounded-xl bg-white/6 p-3 text-xs text-muted-foreground">
-            <p>
-              Root public generation: {detail.lineage.root_public_generation_id ?? "none"}
-            </p>
-            <p>
-              Source generation: {detail.lineage.remix_source_generation_id ?? "original"}
-            </p>
-            <p>
-              Source variant: {detail.lineage.remix_source_variant_id ?? "original"}
-            </p>
-            <p>
-              Derived public generation count: {detail.lineage.derived_public_generation_count}
-            </p>
-            {detail.lineage.derived_public_generation_ids.length > 0 ? (
-              <p className="break-all">
-                Derived ids: {detail.lineage.derived_public_generation_ids.join(", ")}
+          <details className="rounded-xl bg-white/6 p-3 text-xs text-muted-foreground">
+            <summary className="cursor-pointer list-none">Detaylı zincir bilgisi</summary>
+            <div className="mt-2 space-y-2">
+              <p>
+                Kök üretim: {detail.lineage.root_public_generation_id ?? "yok"}
               </p>
-            ) : null}
-          </div>
+              <p>
+                Kaynak üretim: {detail.lineage.remix_source_generation_id ?? "orijinal"}
+              </p>
+              <p>
+                Kaynak varyant: {detail.lineage.remix_source_variant_id ?? "orijinal"}
+              </p>
+              <p>
+                Türeyen açık üretim: {detail.lineage.derived_public_generation_count}
+              </p>
+              {detail.lineage.derived_public_generation_ids.length > 0 ? (
+                <p className="break-all">
+                  Türeyen kimlikler: {detail.lineage.derived_public_generation_ids.join(", ")}
+                </p>
+              ) : null}
+            </div>
+          </details>
         </CardContent>
       </Card>
 
       {exploreItems.length > 0 ? (
         <Card className="rounded-3xl">
           <CardHeader>
-            <CardTitle>Explore Similar</CardTitle>
+            <CardTitle>Benzerlerini keşfet</CardTitle>
             <CardDescription>
-              Trending üretimlerden hızlı keşif.
+              Güncel üretimlerden hızlı geçiş.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -500,16 +503,16 @@ export function PublicGenerationShareView(props: {
 
       <Card className="rounded-3xl">
         <CardHeader>
-          <CardTitle>Bu Creator’dan Daha Fazla</CardTitle>
+          <CardTitle>Bu üreticiden daha fazlası</CardTitle>
           <CardDescription>
-            Aynı creator’ın public üretimlerinden keşif için kısa seçki.
+            Aynı üreticinin herkese açık çalışmalarından kısa seçki.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {detail.creator_more_public.length === 0 ? (
             <EmptyState
-              title="Ek public üretim yok"
-              description="Creator henüz başka public üretim yayınlamadı."
+              title="Ek açık üretim yok"
+              description="Üretici henüz başka açık üretim yayınlamadı."
             />
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -524,7 +527,7 @@ export function PublicGenerationShareView(props: {
                       <img
                         src={item.featured_image_url}
                         alt={item.summary}
-                        className="h-full w-full object-cover"
+                        className="image-fade-in h-full w-full object-cover"
                       />
                     ) : (
                       <div className="grid h-full place-items-center text-xs text-muted-foreground">
@@ -535,7 +538,7 @@ export function PublicGenerationShareView(props: {
                   <div className="space-y-1 p-3">
                     <p className="line-clamp-2 text-sm font-medium">{item.summary}</p>
                     <p className="text-xs text-muted-foreground">
-                      Remix: {item.remix_count} · Quality: {item.quality_score.toFixed(1)}
+                      Remix: {item.remix_count} · Kalite: {item.quality_score.toFixed(1)}
                     </p>
                   </div>
                 </a>
@@ -547,8 +550,8 @@ export function PublicGenerationShareView(props: {
 
       <Card className="rounded-3xl">
         <CardHeader>
-          <CardTitle>Varyantlar</CardTitle>
-          <CardDescription>Public-safe signed URL ile listelenir.</CardDescription>
+          <CardTitle>Diğer kareler</CardTitle>
+          <CardDescription>Paylaşıma açık kareler.</CardDescription>
         </CardHeader>
         <CardContent>
           {detail.variants.length === 0 ? (
@@ -564,8 +567,8 @@ export function PublicGenerationShareView(props: {
                     {variant.signed_url !== null ? (
                       <img
                         src={variant.signed_url}
-                        alt={`Variant ${variant.image_variant_id}`}
-                        className="h-full w-full object-cover"
+                        alt={`Varyant ${variant.image_variant_id}`}
+                        className="image-fade-in h-full w-full object-cover"
                       />
                     ) : (
                       <div className="grid h-full place-items-center text-sm text-muted-foreground">
@@ -574,9 +577,9 @@ export function PublicGenerationShareView(props: {
                     )}
                   </div>
                   <div className="space-y-1 p-3 text-xs text-muted-foreground">
-                    <p>depth: {variant.branch_depth}</p>
-                    <p>variation: {variant.variation_type ?? "original"}</p>
-                    {variant.is_upscaled ? <p>upscaled</p> : null}
+                    <p>Dal: {variant.branch_depth}</p>
+                    <p>Varyasyon: {variant.variation_type ?? "orijinal"}</p>
+                    {variant.is_upscaled ? <p>Yükseltildi</p> : null}
                   </div>
                 </div>
               ))}

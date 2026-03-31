@@ -39,17 +39,17 @@ export default async function SharePage({ params, searchParams }: PageProps): Pr
     <div className="mx-auto w-full max-w-[1600px] space-y-5 px-4 py-6 md:px-6">
       <div className="glass-panel flex flex-wrap items-center justify-between gap-2 rounded-3xl px-4 py-3">
         <div className="text-xs text-muted-foreground">
-          Pixora Share · Creative output crafted by AI direction
+          Pixora paylaşım · Yaratıcı üretim vitrini
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
             href={`/login?next=${encodeURIComponent(`/share/${slug}?auto_remix=1${initialRemixType !== null ? `&remix_type=${initialRemixType}` : ""}&from=share_cta`)}`}
             className={buttonVariants({ variant: "default", className: "rounded-full px-5" })}
           >
-            Remix this image
+            Bu görseli remixle
           </Link>
           <Link href="/login?next=%2F" className={buttonVariants({ variant: "outline", className: "rounded-full px-5" })}>
-            Create your own
+            Kendi görselini üret
           </Link>
         </div>
       </div>
@@ -69,7 +69,7 @@ export default async function SharePage({ params, searchParams }: PageProps): Pr
       />
 
       <footer className="glass-panel rounded-3xl px-4 py-3 text-center text-xs text-muted-foreground">
-        Created with Pixora · Share, remix and grow your creative graph
+        Pixora ile üretildi · Paylaş, remixle, dönüştür
       </footer>
     </div>
   );

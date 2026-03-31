@@ -17,7 +17,7 @@ const navItems: NavItem[] = [
   { href: "/history", label: "Geçmiş", icon: History },
   { href: "/favorites", label: "Favoriler", icon: Heart },
   { href: "/gallery", label: "Galeri", icon: PanelTopOpen },
-  { href: "/billing", label: "Billing", icon: CreditCard },
+  { href: "/billing", label: "Krediler", icon: CreditCard },
 ];
 
 export function AppShell(props: {
@@ -28,12 +28,12 @@ export function AppShell(props: {
   const pathname = usePathname();
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[1520px] gap-5 px-4 py-4 md:px-6">
-      <aside className="glass-panel hidden w-64 shrink-0 rounded-3xl p-4 md:flex md:flex-col md:justify-between">
+    <div className="mx-auto flex min-h-screen w-full max-w-[1600px] gap-4 px-4 py-4 md:px-6">
+      <aside className="glass-panel hidden w-56 shrink-0 rounded-3xl p-3 md:flex md:flex-col md:justify-between">
         <div className="space-y-4">
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight text-white">Pixora</h1>
-            <p className="text-xs text-muted-foreground">AI Creative Director</p>
+          <div className="px-2 pt-1">
+            <h1 className="text-base font-semibold tracking-tight text-white/95">Pixora</h1>
+            <p className="text-[11px] text-muted-foreground">Yaratıcı işletim sistemi</p>
           </div>
 
           <nav className="space-y-1">
@@ -47,8 +47,8 @@ export function AppShell(props: {
                   className={cn(
                     "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition duration-200",
                     isActive
-                      ? "soft-glow bg-primary text-primary-foreground"
-                      : "text-foreground/85 hover:bg-white/8 hover:text-white",
+                      ? "soft-glow bg-primary/95 text-primary-foreground"
+                      : "text-foreground/70 hover:bg-white/7 hover:text-white",
                   )}
                 >
                   <Icon className="h-4 w-4" />
@@ -59,9 +59,9 @@ export function AppShell(props: {
           </nav>
         </div>
 
-        <div className="space-y-3 border-t border-white/10 pt-4">
-          <p className="truncate text-xs text-muted-foreground">{props.userEmail ?? "Kullanıcı"}</p>
-          <Button variant="outline" size="sm" fullWidth onClick={() => void props.onSignOut()}>
+        <div className="space-y-2 border-t border-white/10 px-1 pt-3">
+          <p className="truncate text-[10px] text-white/35">{props.userEmail ?? "Kullanıcı"}</p>
+          <Button variant="ghost" size="sm" fullWidth className="justify-start" onClick={() => void props.onSignOut()}>
             <LogOut className="mr-2 h-4 w-4" />
             Çıkış Yap
           </Button>
@@ -69,7 +69,7 @@ export function AppShell(props: {
       </aside>
 
       <div className="flex min-h-full flex-1 flex-col gap-4">
-        <header className="glass-panel rounded-2xl p-3 md:hidden">
+        <header className="glass-panel rounded-2xl p-2 md:hidden">
           <nav
             className="grid gap-2"
             style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
@@ -83,7 +83,7 @@ export function AppShell(props: {
                   href={item.href}
                   className={cn(
                     "flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm",
-                    isActive ? "soft-glow bg-primary text-primary-foreground" : "bg-white/8 text-white/90",
+                    isActive ? "soft-glow bg-primary text-primary-foreground" : "bg-white/6 text-white/85",
                   )}
                 >
                   <Icon className="h-4 w-4" />
