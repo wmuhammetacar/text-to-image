@@ -28,12 +28,12 @@ export function AppShell(props: {
   const pathname = usePathname();
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-7xl gap-4 px-4 py-4 md:px-6">
-      <aside className="hidden w-60 shrink-0 rounded-2xl border border-border bg-card p-4 shadow-soft md:flex md:flex-col md:justify-between">
+    <div className="mx-auto flex min-h-screen w-full max-w-[1520px] gap-5 px-4 py-4 md:px-6">
+      <aside className="glass-panel hidden w-64 shrink-0 rounded-3xl p-4 md:flex md:flex-col md:justify-between">
         <div className="space-y-4">
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">Visual Intelligence</h1>
-            <p className="text-xs text-muted-foreground">Duygudan görsele üretim</p>
+            <h1 className="text-lg font-semibold tracking-tight text-white">Pixora</h1>
+            <p className="text-xs text-muted-foreground">AI Creative Director</p>
           </div>
 
           <nav className="space-y-1">
@@ -45,10 +45,10 @@ export function AppShell(props: {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
+                    "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition duration-200",
                     isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-foreground hover:bg-secondary",
+                      ? "soft-glow bg-primary text-primary-foreground"
+                      : "text-foreground/85 hover:bg-white/8 hover:text-white",
                   )}
                 >
                   <Icon className="h-4 w-4" />
@@ -59,7 +59,7 @@ export function AppShell(props: {
           </nav>
         </div>
 
-        <div className="space-y-3 border-t border-border pt-4">
+        <div className="space-y-3 border-t border-white/10 pt-4">
           <p className="truncate text-xs text-muted-foreground">{props.userEmail ?? "Kullanıcı"}</p>
           <Button variant="outline" size="sm" fullWidth onClick={() => void props.onSignOut()}>
             <LogOut className="mr-2 h-4 w-4" />
@@ -69,7 +69,7 @@ export function AppShell(props: {
       </aside>
 
       <div className="flex min-h-full flex-1 flex-col gap-4">
-        <header className="rounded-2xl border border-border bg-card p-3 shadow-soft md:hidden">
+        <header className="glass-panel rounded-2xl p-3 md:hidden">
           <nav
             className="grid gap-2"
             style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
@@ -83,7 +83,7 @@ export function AppShell(props: {
                   href={item.href}
                   className={cn(
                     "flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm",
-                    isActive ? "bg-primary text-primary-foreground" : "bg-secondary",
+                    isActive ? "soft-glow bg-primary text-primary-foreground" : "bg-white/8 text-white/90",
                   )}
                 >
                   <Icon className="h-4 w-4" />

@@ -19,25 +19,33 @@ export interface QuickActionDefinition {
 export const quickActionDefinitions: QuickActionDefinition[] = [
   {
     key: "more_dramatic",
-    label: "Daha dramatik yap",
+    label: "Make it more cinematic",
     variationType: "more_dramatic",
     variationParameters: {},
   },
   {
+    key: "make_darker",
+    label: "Make it darker",
+    variationType: "change_mood",
+    variationParameters: {
+      mood: "dark",
+    },
+  },
+  {
     key: "more_minimal",
-    label: "Daha minimal yap",
+    label: "Make it more minimal",
     variationType: "more_minimal",
     variationParameters: {},
   },
   {
     key: "more_realistic",
-    label: "Daha gerçekçi yap",
+    label: "Make it more realistic",
     variationType: "more_realistic",
     variationParameters: {},
   },
   {
     key: "change_environment",
-    label: "Ortamı değiştir",
+    label: "Change environment",
     variationType: "change_environment",
     variationParameters: {
       environment: "rainy neon alley",
@@ -45,7 +53,7 @@ export const quickActionDefinitions: QuickActionDefinition[] = [
   },
   {
     key: "change_lighting",
-    label: "Işığı değiştir",
+    label: "Change lighting",
     variationType: "change_lighting",
     variationParameters: {
       lighting: "soft cinematic side-light",
@@ -53,7 +61,7 @@ export const quickActionDefinitions: QuickActionDefinition[] = [
   },
   {
     key: "increase_detail",
-    label: "Detayı artır",
+    label: "Increase detail",
     variationType: "increase_detail",
     variationParameters: {},
   },
@@ -209,7 +217,8 @@ export function QuickActions(props: {
         <Button
           key={action.key}
           size="sm"
-          variant="outline"
+          variant="ghost"
+          className="justify-start rounded-full bg-white/8 px-3 text-xs text-white/90 hover:bg-white/14"
           disabled={props.disabled || props.variantId === null || loadingActionKey !== null}
           onClick={() => void onAction(action)}
           data-testid={`quick-action-${action.key}`}

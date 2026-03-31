@@ -5,7 +5,6 @@ import type { GenerationDetailResponseDto } from "@vi/contracts";
 import { refineRequestBodySchema } from "@vi/contracts";
 import {
   ArrowUpCircle,
-  GitBranch,
   Layers3,
   Sparkles,
   WandSparkles,
@@ -154,12 +153,12 @@ function getVariantOriginLabel(variant: GenerationDetailResponseDto["variants"][
 export function selectSuggestedQuickActionKeys(styleTags: string[]): string[] {
   const normalized = styleTags.map((entry) => entry.toLowerCase());
   if (normalized.some((entry) => entry.includes("cinematic"))) {
-    return ["more_dramatic", "change_lighting", "increase_detail"];
+    return ["more_dramatic", "make_darker", "increase_detail"];
   }
   if (normalized.some((entry) => entry.includes("surreal"))) {
-    return ["more_stylized", "change_environment", "more_minimal"];
+    return ["more_stylized", "change_environment", "make_darker"];
   }
-  return ["more_dramatic", "more_realistic", "change_environment"];
+  return ["more_dramatic", "make_darker", "change_environment"];
 }
 
 function VariantOriginIcon(props: {
@@ -375,8 +374,54 @@ export function GenerationDetailView(props: { generationId: string }): React.JSX
     return getRunStateUi(detail.active_run_state);
   }, [detail]);
 
-  const terminalMessage = detail === null ? null : getGenerationTerminalMessage(detail);
-  const loadingMessage = detail === null ? null : getLoadingExperienceMessage(detail);
+const terminalMessage = detail === null ? null : getGenerationTerminalMessage(detail);
+const loadingMessage = detail === null ? null : getLoadingExperienceMessage(detail);
+  const loadingSteps: Array<{ key: string; label: string }> = [
+    { key: "analyzing", label: "Understanding your idea..." },
+    { key: "planning", label: "Designing composition..." },
+    { key: "detail", label: "Rendering details..." },
+    { key: "enhancement", label: "Enhancing output..." },
+  ];
+
+  const activePassType = useMemo(() => {
+    if (detail === null) {
+      return null;
+    }
+    return detail.passes
+      .slice()
+      .sort((a, b) => a.pass_index - b.pass_index)
+      .find((pass) => pass.status === "running" || pass.status === "queued")?.pass_type ?? null;
+  }, [detail]);
+
+  const activeLoadingStepIndex = useMemo(() => {
+    if (detail === null) {
+      return -1;
+    }
+
+    if (detail.active_run_state === "analyzing") {
+      return 0;
+    }
+    if (detail.active_run_state === "planning") {
+      return 1;
+    }
+    if (detail.active_run_state === "generating") {
+      if (activePassType === "concept" || activePassType === "composition") {
+        return 2;
+      }
+      if (activePassType === "detail" || activePassType === "enhancement") {
+        return 3;
+      }
+      return 2;
+    }
+    if (detail.active_run_state === "refining") {
+      return 3;
+    }
+    if (isTerminalRunState(detail.active_run_state)) {
+      return loadingSteps.length;
+    }
+
+    return -1;
+  }, [activePassType, detail, loadingSteps.length]);
 
   const sortedVariants = useMemo(() => {
     if (detail === null) {
@@ -676,48 +721,51 @@ export function GenerationDetailView(props: { generationId: string }): React.JSX
   }
 
   return (
-    <div className="space-y-4">
-      <Card>
+    <div className="space-y-5">
+      <Card className="rounded-3xl">
         <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="space-y-2">
-            <CardTitle className="text-xl">Generation Detayı</CardTitle>
-            <CardDescription className="break-all">
+            <CardTitle className="text-xl text-white">Creative Run</CardTitle>
+            <CardDescription className="break-all text-muted-foreground">
               generation_id: {detail.generation_id}
             </CardDescription>
           </div>
           <RunStateBadge state={detail.active_run_state} />
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          {runUi !== null ? <p>{runUi.description}</p> : null}
+          {runUi !== null ? <p className="text-white/85">{runUi.description}</p> : null}
           {terminalMessage !== null ? (
-            <p className="rounded-xl border border-border bg-secondary px-3 py-2">{terminalMessage}</p>
+            <p className="rounded-2xl bg-white/7 px-3 py-2 text-white/90">{terminalMessage}</p>
           ) : null}
 
           {loadingMessage !== null ? (
-            <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2">
-              <p className="animate-pulse text-sm font-medium text-primary">{loadingMessage}</p>
-              {detail.passes.length > 0 ? (
-                <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                  {detail.passes
-                    .slice()
-                    .sort((a, b) => a.pass_index - b.pass_index)
-                    .map((pass) => (
+            <div className="rounded-2xl bg-white/6 p-3">
+              <p className="mb-3 text-sm font-medium text-primary">{loadingMessage}</p>
+              <div className="space-y-2">
+                {loadingSteps.map((step, index) => {
+                  const completed = activeLoadingStepIndex > index;
+                  const active = activeLoadingStepIndex === index;
+                  return (
+                    <div key={step.key} className="flex items-center gap-3">
                       <span
-                        key={pass.pass_id}
-                        className="rounded-full border border-border bg-card px-2 py-1"
-                      >
-                        {pass.pass_type}: {pass.status}
-                      </span>
-                    ))}
-                </div>
-              ) : null}
+                        className={[
+                          "h-2.5 w-2.5 rounded-full transition",
+                          completed ? "bg-cyan-300" : active ? "bg-primary shadow-[0_0_16px_rgba(108,59,255,0.9)]" : "bg-white/20",
+                        ].join(" ")}
+                      />
+                      <p className={completed || active ? "text-white" : "text-muted-foreground"}>
+                        {step.label}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="ai-gradient-line mt-3 h-1 w-full animate-pulse rounded-full" />
             </div>
           ) : null}
 
           {pollError !== null ? (
-            <p className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900">
-              {pollError}
-            </p>
+            <p className="rounded-xl bg-amber-400/15 px-3 py-2 text-amber-200">{pollError}</p>
           ) : null}
 
           {inlineNotifications.length > 0 ? (
@@ -725,263 +773,285 @@ export function GenerationDetailView(props: { generationId: string }): React.JSX
               {inlineNotifications.map((notification, index) => (
                 <p
                   key={`${notification}-${index}`}
-                  className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-900"
+                  className="rounded-xl bg-emerald-400/15 px-3 py-2 text-xs text-emerald-200"
                 >
                   {notification}
                 </p>
               ))}
             </div>
           ) : null}
-
-          {actionMessage !== null ? (
-            <div className="space-y-2">
-              <p className="rounded-xl border border-border bg-secondary px-3 py-2 text-sm">
-                {actionMessage}
-              </p>
-              {(actionMessage.includes("kredi") || actionMessage.includes("limit")) ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    if (typeof window !== "undefined") {
-                      window.location.href = "/billing";
-                    }
-                  }}
-                >
-                  Billing'e git
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="grid gap-2 md:grid-cols-2">
-            {detail.runs.map((run) => (
-              <div key={run.run_id} className="rounded-xl border border-border bg-secondary/40 p-3">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="truncate text-xs text-muted-foreground">run_id: {run.run_id}</span>
-                  <span className="text-xs font-medium">{run.pipeline_state}</span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Deneme: {run.attempt} · Oluşturulma: {formatTurkishDate(run.created_at)}
-                </p>
-              </div>
-            ))}
-          </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
-        <div className="space-y-4">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.9fr)_minmax(0,1fr)]">
+        <div className="space-y-5">
           <div ref={variantsSectionRef}>
-            <Card>
-              <CardHeader>
-                <CardTitle>Varyantlar</CardTitle>
-                <CardDescription>
-                  selected state, lineage ve quick upscale aksiyonları bu grid üzerinde çalışır.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {sortedVariants.length === 0 ? (
-                  <EmptyState
-                    title="Henüz varyant yok"
-                    description="Pipeline tamamlandığında görseller burada görüntülenecek."
-                  />
-                ) : (
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {sortedVariants.map((variant) => {
-                      const activeFavorite = favoriteIds.has(variant.image_variant_id) ||
-                        isFavorited(variant.image_variant_id);
-                      const isSelected = variant.image_variant_id === selectedVariant?.image_variant_id;
-                      const isHighlighted = variant.image_variant_id === highlightedVariantId;
-                      const loadingThisVariant = uiState.loadingVariantId === variant.image_variant_id;
-                      const variantScore = variantScoreById.get(variant.image_variant_id);
-
-                      return (
-                        <div
-                          key={variant.image_variant_id}
-                          className={[
-                            "overflow-hidden rounded-2xl border bg-card transition",
-                            isSelected ? "border-primary ring-2 ring-primary/30" : "border-border",
-                            isHighlighted ? "ring-2 ring-emerald-300" : "",
-                          ].join(" ")}
-                        >
-                          <button
-                            type="button"
-                            className="block w-full"
-                            onClick={() => {
-                              setUiState((current) => setSelectedVariant(current, variant.image_variant_id));
-                            }}
-                          >
-                            <div className="aspect-square bg-secondary">
-                              {variant.status === "completed" && variant.signed_url !== null ? (
-                                <img
-                                  src={variant.signed_url}
-                                  alt={`Varyant ${variant.variant_index}`}
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : (
-                                <div className="grid h-full place-items-center px-3 text-center text-sm text-muted-foreground">
-                                  {variant.status === "blocked"
-                                    ? "Moderasyon nedeniyle engellendi"
-                                    : "Görsel üretilemedi"}
-                                </div>
-                              )}
-                            </div>
-                          </button>
-
-                          <div className="space-y-2 p-3 text-sm">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="font-medium">Varyant #{variant.variant_index}</p>
-                              <span className="text-xs uppercase tracking-wide">{variant.status}</span>
-                            </div>
-                            {variantScore !== undefined ? (
-                              <p className="text-xs text-muted-foreground">
-                                Kalite skoru: {variantScore.total_score.toFixed(2)}
-                                {variantScore.is_best ? " · En iyi varyant" : ""}
-                              </p>
-                            ) : null}
-                            <p className="break-all text-xs text-muted-foreground">run_id: {variant.run_id}</p>
-                            <div className="flex flex-wrap items-center gap-2 text-xs">
-                              <span className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-1">
-                                <VariantOriginIcon variant={variant} />
-                                {getVariantOriginLabel(variant)}
-                              </span>
-                              <span className="rounded-full border border-border bg-secondary px-2 py-1">
-                                depth: {variant.branch_depth}
-                              </span>
-                              {variant.is_upscaled ? (
-                                <span className="rounded-full border border-emerald-300 bg-emerald-100 px-2 py-1 text-emerald-800">
-                                  Upscale
-                                </span>
-                              ) : null}
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Button
-                                size="sm"
-                                variant={isSelected ? "secondary" : "outline"}
-                                onClick={() => {
-                                  setUiState((current) =>
-                                    setSelectedVariant(current, variant.image_variant_id)
-                                  );
-                                }}
-                              >
-                                {isSelected ? "Seçili" : "Seç"}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={
-                                  variant.status !== "completed" ||
-                                  loadingThisVariant ||
-                                  detail.generation_state === "blocked"
-                                }
-                                onClick={() => void onUpscale(variant)}
-                              >
-                                {loadingThisVariant ? "Upscale..." : "Upscale"}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant={activeFavorite ? "secondary" : "outline"}
-                                onClick={() => void onToggleFavorite(variant)}
-                              >
-                                {activeFavorite ? "Favoriden kaldır" : "Favoriye ekle"}
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+            <Card className="overflow-hidden rounded-3xl">
+              <CardContent className="p-0">
+                <div className="relative aspect-[4/3] bg-black/40">
+                  {selectedVariant !== null && selectedVariant.status === "completed" && selectedVariant.signed_url !== null ? (
+                    <img
+                      src={selectedVariant.signed_url}
+                      alt={`Seçili varyant ${selectedVariant.variant_index}`}
+                      className="h-full w-full object-cover transition duration-500 hover:scale-[1.02]"
+                    />
+                  ) : (
+                    <div className="grid h-full place-items-center px-4 text-center text-sm text-muted-foreground">
+                      Varyant üretimi henüz hazır değil.
+                    </div>
+                  )}
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/70 to-transparent" />
+                  {selectedVariant !== null ? (
+                    <div className="absolute bottom-0 left-0 right-0 flex flex-wrap items-center justify-between gap-2 p-4 text-xs text-white/90">
+                      <div className="flex items-center gap-2">
+                        <VariantOriginIcon variant={selectedVariant} />
+                        <span>{getVariantOriginLabel(selectedVariant)}</span>
+                        <span className="rounded-full bg-white/15 px-2 py-1">
+                          depth {selectedVariant.branch_depth}
+                        </span>
+                        {selectedVariant.is_upscaled ? (
+                          <span className="rounded-full bg-cyan-400/25 px-2 py-1 text-cyan-100">Upscale</span>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {variantScoreById.get(selectedVariant.image_variant_id)?.is_best ? (
+                          <span className="rounded-full bg-primary/50 px-2 py-1">Best variant</span>
+                        ) : null}
+                        <span className="uppercase">{selectedVariant.status}</span>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               </CardContent>
             </Card>
           </div>
+
+          <Card className="rounded-3xl">
+            <CardHeader>
+              <CardTitle>Variations</CardTitle>
+              <CardDescription>Hero görüntüyü değiştirmek için bir varyanta tıkla.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {sortedVariants.length === 0 ? (
+                <EmptyState
+                  title="Henüz varyant yok"
+                  description="Pipeline tamamlandığında burada görünecek."
+                />
+              ) : (
+                <div className="-mx-2 flex snap-x gap-3 overflow-x-auto px-2 pb-1">
+                  {sortedVariants.map((variant) => {
+                    const activeFavorite = favoriteIds.has(variant.image_variant_id) || isFavorited(variant.image_variant_id);
+                    const isSelected = variant.image_variant_id === selectedVariant?.image_variant_id;
+                    const isHighlighted = variant.image_variant_id === highlightedVariantId;
+                    const loadingThisVariant = uiState.loadingVariantId === variant.image_variant_id;
+                    const variantScore = variantScoreById.get(variant.image_variant_id);
+                    return (
+                      <div
+                        key={variant.image_variant_id}
+                        className={[
+                          "glass-panel w-56 shrink-0 snap-start overflow-hidden rounded-2xl transition duration-200",
+                          isSelected ? "soft-glow -translate-y-0.5" : "hover:-translate-y-0.5 hover:bg-white/10",
+                          isHighlighted ? "ring-2 ring-cyan-300/70" : "",
+                        ].join(" ")}
+                      >
+                        <button
+                          type="button"
+                          className="block w-full text-left"
+                          onClick={() => setUiState((current) => setSelectedVariant(current, variant.image_variant_id))}
+                        >
+                          <div className="aspect-square bg-white/5">
+                            {variant.status === "completed" && variant.signed_url !== null ? (
+                              <img
+                                src={variant.signed_url}
+                                alt={`Varyant ${variant.variant_index}`}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="grid h-full place-items-center px-2 text-center text-xs text-muted-foreground">
+                                {variant.status === "blocked" ? "Blocked" : "Görsel üretilemedi"}
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                        <div className="space-y-2 p-3 text-xs">
+                          <p className="font-medium text-white">Varyant #{variant.variant_index}</p>
+                          <p className="line-clamp-1 text-muted-foreground">{buildLineageTrail(variant).join(" → ")}</p>
+                          {variantScore !== undefined ? (
+                            <p className="text-muted-foreground">Score {variantScore.total_score.toFixed(2)}</p>
+                          ) : null}
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant={isSelected ? "secondary" : "ghost"}
+                              className="h-8 rounded-full px-3 text-xs"
+                              onClick={() => setUiState((current) => setSelectedVariant(current, variant.image_variant_id))}
+                            >
+                              {isSelected ? "Selected" : "Select"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 rounded-full bg-white/8 px-3 text-xs"
+                              disabled={
+                                variant.status !== "completed" ||
+                                loadingThisVariant ||
+                                detail.generation_state === "blocked"
+                              }
+                              onClick={() => void onUpscale(variant)}
+                            >
+                              {loadingThisVariant ? "Upscale..." : "Upscale"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 rounded-full bg-white/8 px-3 text-xs"
+                              onClick={() => void onToggleFavorite(variant)}
+                            >
+                              {activeFavorite ? "Favoride" : "Favoriye ekle"}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-3xl">
+            <CardHeader>
+              <CardTitle>Refine</CardTitle>
+              <CardDescription>Bu sonucu bozmadan yeni bir yaratıcı run aç.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-4" onSubmit={onSubmitRefine}>
+                <Textarea
+                  id="refine-text"
+                  value={refineText}
+                  onChange={(event) => setRefineText(event.target.value)}
+                  maxLength={280}
+                  placeholder="Bu sahneyi koru ama daha sinematik yap..."
+                  required
+                  className="min-h-24"
+                />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Select
+                    id="refine-count"
+                    value={String(refineCount)}
+                    onChange={(event) => {
+                      const value = Number.parseInt(event.target.value, 10);
+                      if (value >= 1 && value <= 4) {
+                        setRefineCount(value);
+                      }
+                    }}
+                  >
+                    <option value="1">1 varyant</option>
+                    <option value="2">2 varyant</option>
+                    <option value="3">3 varyant</option>
+                    <option value="4">4 varyant</option>
+                  </Select>
+                  <Button type="submit" disabled={!canRefine || refineSubmitting || uiState.loadingVariantId !== null}>
+                    {refineSubmitting ? "Refine başlatılıyor..." : "Refine"}
+                  </Button>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {([
+                    ["darkness", "Darkness"],
+                    ["calmness", "Calmness"],
+                    ["nostalgia", "Nostalgia"],
+                    ["cinematic", "Cinematic"],
+                  ] as const).map(([key, label]) => (
+                    <div key={key} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{label}</span>
+                        <span>{refineControls[key]}</span>
+                      </div>
+                      <input
+                        id={`refine-${key}`}
+                        type="range"
+                        min={-2}
+                        max={2}
+                        step={1}
+                        value={refineControls[key]}
+                        onChange={(event) => {
+                          const value = toControlValue(event.target.value);
+                          setRefineControls((current) => ({ ...current, [key]: value }));
+                        }}
+                        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/15"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </form>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="space-y-4 xl:sticky xl:top-4 xl:self-start">
-          <Card>
+          <Card className="rounded-3xl">
             <CardHeader>
-              <CardTitle>Seçili Varyant</CardTitle>
-              <CardDescription>
-                Büyük önizleme, quick actions ve lineage özeti bu panelde gösterilir.
-              </CardDescription>
+              <CardTitle>AI Suggestions</CardTitle>
+              <CardDescription>Tek tıkla yaratıcı yön değiştir.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3">
               {selectedVariant === null ? (
                 <EmptyState
-                  title="Varyant seçilmedi"
-                  description="Grid üzerinden bir varyant seçin."
+                  title="Varyant seç"
+                  description="Önce bir varyant seçerek aksiyon başlat."
                 />
               ) : (
                 <>
-                  <div className="overflow-hidden rounded-2xl border border-border bg-secondary">
-                    <div className="aspect-square">
-                      {selectedVariant.status === "completed" && selectedVariant.signed_url !== null ? (
-                        <img
-                          src={selectedVariant.signed_url}
-                          alt={`Seçili varyant ${selectedVariant.variant_index}`}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="grid h-full place-items-center text-sm text-muted-foreground">
-                          Seçili varyant önizlemesi hazır değil.
-                        </div>
-                      )}
-                    </div>
+                  <QuickActions
+                    variantId={selectedVariant.image_variant_id}
+                    disabled={!canRunVariantActions || refineSubmitting}
+                    onQueued={(params) => {
+                      setUiState((current) =>
+                        setLastAction(
+                          setLoadingVariant(current, null),
+                          {
+                            type: "variation",
+                            label: params.actionLabel,
+                            runId: params.runId,
+                          },
+                        )
+                      );
+                      setActionMessage(`${params.actionLabel} queued.`);
+                      trackProductEvent("remix_cta_clicked", {
+                        source: "generation_detail_quick_action",
+                        variation_type: params.variationType,
+                        generation_id: detail.generation_id,
+                      });
+                      trackProductEventOnce("first_remix", {
+                        source: "generation_detail_quick_action",
+                        variation_type: params.variationType,
+                      });
+                      setRefreshToken((value) => value + 1);
+                    }}
+                    onError={(message) => setActionMessage(message)}
+                    onLoadingVariantChange={(variantId) => {
+                      setUiState((current) => setLoadingVariant(current, variantId));
+                    }}
+                  />
+                  <div className="grid gap-2">
+                    {suggestedActions.map((action) => (
+                      <Button
+                        key={`suggestion-${action.key}`}
+                        type="button"
+                        variant="ghost"
+                        className="justify-start rounded-full bg-white/8 px-3 text-xs hover:bg-white/14"
+                        disabled={!canRunVariantActions || uiState.loadingVariantId !== null}
+                        onClick={() => void onSuggestedAction(action.key)}
+                      >
+                        {action.label}
+                      </Button>
+                    ))}
                   </div>
-
-                  <div className="space-y-2 rounded-xl border border-border bg-secondary/40 p-3 text-sm">
-                    <p className="font-medium">
-                      Varyant #{selectedVariant.variant_index} · {selectedVariant.status}
+                  {uiState.lastAction !== null ? (
+                    <p className="rounded-xl bg-white/6 px-3 py-2 text-xs text-muted-foreground">
+                      Son aksiyon: {uiState.lastAction.label} · run_id: {uiState.lastAction.runId}
                     </p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <GitBranch className="h-3.5 w-3.5" />
-                      {buildLineageTrail(selectedVariant).join(" → ")}
-                    </div>
-                    {uiState.lastAction !== null ? (
-                      <p className="text-xs text-muted-foreground">
-                        Son aksiyon: {uiState.lastAction.label} · run_id: {uiState.lastAction.runId}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold">Hızlı Aksiyonlar</p>
-                    <QuickActions
-                      variantId={selectedVariant.image_variant_id}
-                      disabled={!canRunVariantActions || refineSubmitting}
-                      onQueued={(params) => {
-                        setUiState((current) =>
-                          setLastAction(
-                            setLoadingVariant(current, null),
-                            {
-                              type: "variation",
-                              label: params.actionLabel,
-                              runId: params.runId,
-                            },
-                          )
-                        );
-                        setActionMessage(`${params.actionLabel} kuyruğa alındı.`);
-                        trackProductEvent("remix_cta_clicked", {
-                          source: "generation_detail_quick_action",
-                          variation_type: params.variationType,
-                          generation_id: detail.generation_id,
-                        });
-                        trackProductEventOnce("first_remix", {
-                          source: "generation_detail_quick_action",
-                          variation_type: params.variationType,
-                        });
-                        setRefreshToken((value) => value + 1);
-                      }}
-                      onError={(message) => {
-                        setActionMessage(message);
-                      }}
-                      onLoadingVariantChange={(variantId) => {
-                        setUiState((current) => setLoadingVariant(current, variantId));
-                      }}
-                    />
-                  </div>
+                  ) : null}
                 </>
               )}
             </CardContent>
@@ -994,53 +1064,10 @@ export function GenerationDetailView(props: { generationId: string }): React.JSX
             conciseReasoning={detail.explainability?.summary ?? null}
           />
 
-          <Card>
+          <Card className="rounded-3xl">
             <CardHeader>
-              <CardTitle>Try Next</CardTitle>
-              <CardDescription>
-                Bu sonuçtan devam etmek için önerilen aksiyonlar.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid gap-2 sm:grid-cols-2">
-                {suggestedActions.map((action) => (
-                  <Button
-                    key={`suggestion-${action.key}`}
-                    type="button"
-                    variant="outline"
-                    disabled={!canRunVariantActions || uiState.loadingVariantId !== null}
-                    onClick={() => void onSuggestedAction(action.key)}
-                  >
-                    {action.label}
-                  </Button>
-                ))}
-              </div>
-              {(detail.selected_direction?.style_tags.length ?? 0) > 0 ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    const tag = detail.selected_direction?.style_tags[0] ?? "cinematic";
-                    trackProductEvent("suggestion_used", {
-                      source: "generation_detail",
-                      suggestion_key: "explore_similar",
-                      tag,
-                    });
-                    window.location.href = `/gallery?sort=trending&tag=${encodeURIComponent(tag)}`;
-                  }}
-                >
-                  Explore similar
-                </Button>
-              ) : null}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Paylaşım</CardTitle>
-              <CardDescription>
-                Visibility ayarı private/unlisted/public olarak güncellenir. Gallery sadece public kayıtları listeler.
-              </CardDescription>
+              <CardTitle>Share</CardTitle>
+              <CardDescription>Public veya unlisted yap, linki paylaş.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-2">
@@ -1060,132 +1087,59 @@ export function GenerationDetailView(props: { generationId: string }): React.JSX
                   <option value="public">public</option>
                 </Select>
               </div>
-
               <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  onClick={() => void onSaveVisibility()}
-                  disabled={visibilitySaving}
-                >
-                  {visibilitySaving ? "Kaydediliyor..." : "Paylaşım Ayarını Kaydet"}
+                <Button type="button" onClick={() => void onSaveVisibility()} disabled={visibilitySaving}>
+                  {visibilitySaving ? "Kaydediliyor..." : "Kaydet"}
                 </Button>
                 {shareLink !== null ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => void onCopyShareLink()}
-                  >
+                  <Button type="button" variant="outline" onClick={() => void onCopyShareLink()}>
                     Linki Kopyala
                   </Button>
                 ) : null}
               </div>
-
-              {shareLink !== null ? (
-                <p className="break-all rounded-xl border border-border bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
-                  {shareLink}
-                </p>
-              ) : (
-                <p className="rounded-xl border border-border bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
-                  Private modda paylaşım bağlantısı devre dışıdır.
-                </p>
-              )}
+              <p className="break-all rounded-xl bg-white/6 px-3 py-2 text-xs text-muted-foreground">
+                {shareLink ?? "Private modda paylaşım bağlantısı kapalı."}
+              </p>
+              <div className="grid gap-2">
+                {detail.runs.map((run) => (
+                  <p key={run.run_id} className="rounded-xl bg-white/6 px-3 py-2 text-xs text-muted-foreground">
+                    {run.pipeline_state} · {formatTurkishDate(run.created_at)}
+                  </p>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Refine</CardTitle>
-          <CardDescription>
-            Eski run değişmez. Yeni refinement_instruction ile yeni generation_run açılır.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={onSubmitRefine}>
-            <div className="space-y-2">
-              <Label htmlFor="refine-text">Refinement Instruction</Label>
-              <Textarea
-                id="refine-text"
-                value={refineText}
-                onChange={(event) => setRefineText(event.target.value)}
-                maxLength={280}
-                placeholder="Örn: Daha sakin ve nostaljik bir atmosfer ver"
-                required
-              />
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="refine-count">Yeni Görsel Sayısı</Label>
-                <Select
-                  id="refine-count"
-                  value={String(refineCount)}
-                  onChange={(event) => {
-                    const value = Number.parseInt(event.target.value, 10);
-                    if (value >= 1 && value <= 4) {
-                      setRefineCount(value);
-                    }
-                  }}
-                >
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                  <option value="3">3</option>
-                  <option value="4">4</option>
-                </Select>
-              </div>
-
-              <div className="rounded-xl border border-border bg-secondary/30 p-3 text-xs text-muted-foreground">
-                Refine sadece terminal run sonrasında açılır. Blocked generation için refine kapalıdır.
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              {([
-                ["darkness", "Karanlık Delta"],
-                ["calmness", "Sakinlik Delta"],
-                ["nostalgia", "Nostalji Delta"],
-                ["cinematic", "Sinematik Delta"],
-              ] as const).map(([key, label]) => (
-                <div key={key} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor={`refine-${key}`}>{label}</Label>
-                    <span className="text-xs text-muted-foreground">{refineControls[key]}</span>
-                  </div>
-                  <input
-                    id={`refine-${key}`}
-                    type="range"
-                    min={-2}
-                    max={2}
-                    step={1}
-                    value={refineControls[key]}
-                    onChange={(event) => {
-                      const value = toControlValue(event.target.value);
-                      setRefineControls((current) => ({
-                        ...current,
-                        [key]: value,
-                      }));
-                    }}
-                    className="h-2 w-full cursor-pointer appearance-none rounded-full bg-secondary"
-                  />
-                </div>
-              ))}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="submit" disabled={!canRefine || refineSubmitting || uiState.loadingVariantId !== null}>
-                {refineSubmitting ? "Refine başlatılıyor..." : "Refine Başlat"}
+      {actionMessage !== null ? (
+        <Card className="rounded-2xl">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
+            <p>{actionMessage}</p>
+            {(actionMessage.includes("kredi") || actionMessage.includes("limit")) ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  if (typeof window !== "undefined") {
+                    window.location.href = "/billing";
+                  }
+                }}
+              >
+                Billing'e git
               </Button>
-              <Button type="button" variant="outline" onClick={() => setRefreshToken((v) => v + 1)}>
-                Manuel Yenile
+            ) : null}
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="ghost" onClick={() => setRefreshToken((v) => v + 1)}>
+                Yenile
               </Button>
               <Link href="/history" className="text-sm font-medium text-primary">
-                Geçmişe dön
+                Geçmiş
               </Link>
             </div>
-          </form>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

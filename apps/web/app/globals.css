@@ -2,20 +2,20 @@
 @import "tailwindcss";
 
 :root {
-  --background: 195 28% 96%;
-  --foreground: 200 26% 14%;
-  --card: 0 0% 100%;
-  --card-foreground: 200 26% 14%;
-  --primary: 186 72% 34%;
-  --primary-foreground: 195 100% 98%;
-  --secondary: 200 18% 92%;
-  --secondary-foreground: 200 26% 24%;
-  --muted: 197 18% 89%;
-  --muted-foreground: 200 14% 38%;
-  --border: 196 19% 81%;
-  --input: 196 19% 81%;
-  --ring: 186 72% 34%;
-  --danger: 9 72% 49%;
+  --background: 240 14% 5%;
+  --foreground: 0 0% 100%;
+  --card: 240 12% 10%;
+  --card-foreground: 0 0% 100%;
+  --primary: 257 100% 62%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 10% 14%;
+  --secondary-foreground: 0 0% 96%;
+  --muted: 240 9% 16%;
+  --muted-foreground: 240 7% 67%;
+  --border: 240 9% 20%;
+  --input: 240 9% 20%;
+  --ring: 193 100% 50%;
+  --danger: 4 76% 56%;
   --danger-foreground: 0 0% 100%;
 }
 
@@ -26,6 +26,36 @@
 body {
   @apply bg-background text-foreground antialiased;
   min-height: 100vh;
-  background-image: radial-gradient(circle at 20% -10%, rgba(13, 148, 136, 0.18), transparent 34%),
-    radial-gradient(circle at 100% 0%, rgba(15, 118, 110, 0.15), transparent 38%);
+  background-image:
+    radial-gradient(circle at 0% 0%, rgba(108, 59, 255, 0.22), transparent 33%),
+    radial-gradient(circle at 100% 0%, rgba(0, 212, 255, 0.16), transparent 28%),
+    radial-gradient(circle at 50% 100%, rgba(108, 59, 255, 0.09), transparent 40%);
+  background-attachment: fixed;
+}
+
+.glass-panel {
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.06),
+    rgba(255, 255, 255, 0.025)
+  );
+  backdrop-filter: blur(18px);
+  box-shadow:
+    0 14px 44px -24px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}
+
+.soft-glow {
+  box-shadow:
+    0 14px 46px -24px rgba(108, 59, 255, 0.55),
+    0 8px 30px -16px rgba(0, 212, 255, 0.35);
+}
+
+.ai-gradient-line {
+  background: linear-gradient(
+    90deg,
+    rgba(108, 59, 255, 0.28),
+    rgba(0, 212, 255, 0.38),
+    rgba(108, 59, 255, 0.28)
+  );
 }

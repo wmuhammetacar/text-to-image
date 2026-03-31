@@ -36,29 +36,29 @@ export default async function SharePage({ params, searchParams }: PageProps): Pr
   const initialRemixType = isVariationType(query.remix_type) ? query.remix_type : null;
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-4 px-4 py-6 md:px-6">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-card/70 px-3 py-3">
+    <div className="mx-auto w-full max-w-[1600px] space-y-5 px-4 py-6 md:px-6">
+      <div className="glass-panel flex flex-wrap items-center justify-between gap-2 rounded-3xl px-4 py-3">
         <div className="text-xs text-muted-foreground">
-          Pixora Share · Creative intelligence driven visual output
+          Pixora Share · Creative output crafted by AI direction
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
             href={`/login?next=${encodeURIComponent(`/share/${slug}?auto_remix=1${initialRemixType !== null ? `&remix_type=${initialRemixType}` : ""}&from=share_cta`)}`}
-            className={buttonVariants({ variant: "default" })}
+            className={buttonVariants({ variant: "default", className: "rounded-full px-5" })}
           >
-            Remix this
+            Remix this image
           </Link>
-          <Link href="/login?next=%2F" className={buttonVariants({ variant: "outline" })}>
+          <Link href="/login?next=%2F" className={buttonVariants({ variant: "outline", className: "rounded-full px-5" })}>
             Create your own
           </Link>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Link href="/gallery" className={buttonVariants({ variant: "outline" })}>
+        <Link href="/gallery" className={buttonVariants({ variant: "ghost", className: "rounded-full bg-white/8 px-4" })}>
           Galeriye dön
         </Link>
-        <Link href="/" className={buttonVariants({ variant: "outline" })}>
+        <Link href="/" className={buttonVariants({ variant: "ghost", className: "rounded-full bg-white/8 px-4" })}>
           Uygulamaya dön
         </Link>
       </div>
@@ -68,7 +68,7 @@ export default async function SharePage({ params, searchParams }: PageProps): Pr
         initialRemixType={initialRemixType}
       />
 
-      <footer className="rounded-2xl border border-border bg-card/70 px-4 py-3 text-center text-xs text-muted-foreground">
+      <footer className="glass-panel rounded-3xl px-4 py-3 text-center text-xs text-muted-foreground">
         Created with Pixora · Share, remix and grow your creative graph
       </footer>
     </div>

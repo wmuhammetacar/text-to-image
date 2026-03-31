@@ -5,6 +5,7 @@ import {
   generationRequestBodySchema,
   type GenerationRequestDto,
 } from "@vi/contracts";
+import { SlidersHorizontal, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ApiClientError, createGeneration, listGenerationHistory } from "../../lib/api-client";
 import {
@@ -15,8 +16,6 @@ import {
 import { isTerminalRunState } from "../../lib/polling";
 import { trackProductEvent, trackProductEventOnce } from "../../lib/product-events";
 import { Button } from "../ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
-import { Label } from "../ui/label";
 import { Select } from "../ui/select";
 import { ReturningSessionCard } from "./returning-session-card";
 import { StarterPrompts, type StarterPromptPreset } from "./starter-prompts";
@@ -146,6 +145,7 @@ export function GeneratorForm(): React.JSX.Element {
   });
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showControls, setShowControls] = useState(false);
   const [showActivation, setShowActivation] = useState(false);
   const [activationExperimentVariant, setActivationExperimentVariant] = useState("control");
   const [latestHistory, setLatestHistory] = useState<{
@@ -272,133 +272,204 @@ export function GeneratorForm(): React.JSX.Element {
   };
 
   return (
-    <div className="space-y-4">
-      {showActivation === false && latestHistory !== null ? (
-        <ReturningSessionCard
-          generationId={latestHistory.generationId}
-          activeRunState={latestHistory.activeRunState}
-          unfinished={!isTerminalRunState(latestHistory.activeRunState as Parameters<typeof isTerminalRunState>[0])}
-          onContinue={() => {
-            router.push(`/generations/${latestHistory.generationId}`);
-          }}
-        />
-      ) : null}
+    <div className="relative min-h-[calc(100vh-7rem)] overflow-hidden">
+      <div className="pointer-events-none absolute -left-12 top-10 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
+      <div className="pointer-events-none absolute -right-12 top-32 h-64 w-64 rounded-full bg-cyan-400/15 blur-3xl" />
 
-      {showActivation ? (
-        <StarterPrompts
-          headline={
-            activationExperimentVariant === "copy_b"
-              ? "Hazır başla, ilk WOW sonucu 30 saniyede al"
-              : "İlk üretimi başlat"
-          }
-          description={
-            activationExperimentVariant === "copy_b"
-              ? "Bu preset'lerden biriyle hızlıca üret, sonra variation/upscale ile kaliteyi yükselt."
-              : undefined
-          }
-          presets={starterPresets}
-          onSelect={(presetId) => {
-            const preset = starterPresets.find((entry) => entry.id === presetId);
-            if (preset !== undefined) {
-              applyStarterPreset(preset);
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 pb-8 pt-4">
+        {showActivation === false && latestHistory !== null ? (
+          <ReturningSessionCard
+            generationId={latestHistory.generationId}
+            activeRunState={latestHistory.activeRunState}
+            unfinished={!isTerminalRunState(latestHistory.activeRunState as Parameters<typeof isTerminalRunState>[0])}
+            onContinue={() => {
+              router.push(`/generations/${latestHistory.generationId}`);
+            }}
+          />
+        ) : null}
+
+        {showActivation ? (
+          <StarterPrompts
+            headline={
+              activationExperimentVariant === "copy_b"
+                ? "Hazır başla, ilk WOW sonucu 30 saniyede al"
+                : "İlk üretimi başlat"
             }
-          }}
-        />
-      ) : null}
+            description={
+              activationExperimentVariant === "copy_b"
+                ? "Bu preset'lerden biriyle hızlıca üret, sonra variation/upscale ile kaliteyi yükselt."
+                : undefined
+            }
+            presets={starterPresets}
+            onSelect={(presetId) => {
+              const preset = starterPresets.find((entry) => entry.id === presetId);
+              if (preset !== undefined) {
+                applyStarterPreset(preset);
+              }
+            }}
+          />
+        ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Yeni Üretim</CardTitle>
-          <CardDescription>
-            Metni yazın, sistem duygusal katmanı analiz ederek çoklu görsel varyant üretsin.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-6" onSubmit={onSubmit}>
-          <div className="space-y-2">
-            <Label htmlFor="generation-text">Metin</Label>
-            <Textarea
-              id="generation-text"
-              placeholder="Örn: Çocukluk anılarımı çağrıştıran, sisli bir sabah atmosferinde sinematik bir sahne üret"
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              maxLength={5000}
-              required
-            />
-            <p className="text-xs text-muted-foreground">{text.length}/5000</p>
+        <form
+          className="glass-panel soft-glow mx-auto w-full max-w-4xl rounded-[2rem] px-4 py-5 sm:px-8 sm:py-8"
+          onSubmit={onSubmit}
+        >
+          <div className="mb-6 text-center">
+            <p className="inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1 text-xs font-medium text-muted-foreground">
+              <Sparkles className="h-3.5 w-3.5 text-cyan-300" />
+              AI Creative Canvas
+            </p>
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
+              Ne üretmek istediğini yaz, gerisini Pixora düşünsün
+            </h2>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="requested-image-count">Görsel Sayısı</Label>
-              <Select
-                id="requested-image-count"
-                value={String(requestedImageCount)}
-                onChange={(event) => {
-                  const next = Number.parseInt(event.target.value, 10);
-                  if (next >= 1 && next <= 4) {
-                    setRequestedImageCount(next as GenerationRequestDto["requested_image_count"]);
-                  }
-                }}
-              >
-                <option value="1">1</option>
-                <option value="2">2</option>
-                <option value="3">3</option>
-                <option value="4">4</option>
-              </Select>
-            </div>
+          <Textarea
+            id="generation-text"
+            placeholder="Describe what you want to create..."
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
+            className="min-h-[160px] border-none bg-transparent px-0 text-lg text-white placeholder:text-muted-foreground/75 focus-visible:ring-0"
+            maxLength={5000}
+            required
+          />
+          <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+            <span>Enter ile üretim başlatılır · Shift+Enter yeni satır</span>
+            <span>{text.length}/5000</span>
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="creative-mode">Creative Mode</Label>
-              <Select
-                id="creative-mode"
-                value={creativeMode}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  if (value === "fast" || value === "balanced" || value === "directed") {
-                    setCreativeMode(value);
-                  }
-                }}
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setShowControls((current) => !current)}
+              className="rounded-full bg-white/7 px-4"
+            >
+              <SlidersHorizontal className="mr-2 h-4 w-4" />
+              Kontroller
+            </Button>
+
+            <div className="flex items-center gap-2">
+              <span className="hidden text-xs text-muted-foreground sm:inline">Tek ana aksiyon</span>
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="rounded-full px-6 text-sm"
               >
-                <option value="fast">fast</option>
-                <option value="balanced">balanced</option>
-                <option value="directed">directed</option>
-              </Select>
+                {submitting ? "AI üretiyor..." : "Generate"}
+              </Button>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <h4 className="text-sm font-semibold">Kontroller</h4>
-            <div className="grid gap-4 md:grid-cols-2">
-              {([
-                ["darkness", "Karanlık"],
-                ["calmness", "Sakinlik"],
-                ["nostalgia", "Nostalji"],
-                ["cinematic", "Sinematik"],
-              ] as const).map(([key, label]) => (
-                <div key={key} className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <Label htmlFor={`control-${key}`}>{label}</Label>
-                    <span className="text-muted-foreground">{controls[key]}</span>
-                  </div>
-                  <input
-                    id={`control-${key}`}
-                    type="range"
-                    min={-2}
-                    max={2}
-                    step={1}
-                    value={controls[key]}
-                    onChange={(event) => updateControl(key, event.target.value)}
-                    className="h-2 w-full cursor-pointer appearance-none rounded-full bg-secondary"
-                  />
+          {showControls ? (
+            <div className="mt-5 grid gap-3 rounded-2xl bg-white/6 p-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Style</p>
+                <Select
+                  value={creativeMode}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (value === "fast" || value === "balanced" || value === "directed") {
+                      setCreativeMode(value);
+                    }
+                  }}
+                >
+                  <option value="fast">Fast</option>
+                  <option value="balanced">Balanced</option>
+                  <option value="directed">Directed</option>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Mood</p>
+                <Select
+                  value={`${controls.darkness}:${controls.calmness}`}
+                  onChange={(event) => {
+                    const [darknessRaw, calmnessRaw] = event.target.value.split(":");
+                    setControls((current) => ({
+                      ...current,
+                      darkness: toControlValue(darknessRaw ?? "0"),
+                      calmness: toControlValue(calmnessRaw ?? "0"),
+                    }));
+                  }}
+                >
+                  <option value="-1:2">Calm</option>
+                  <option value="0:0">Neutral</option>
+                  <option value="2:-1">Intense</option>
+                  <option value="1:-2">Dark</option>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <p className="font-medium uppercase tracking-wide text-muted-foreground">Detail</p>
+                  <span>{controls.cinematic}</span>
                 </div>
-              ))}
+                <input
+                  id="control-detail"
+                  type="range"
+                  min={-2}
+                  max={2}
+                  step={1}
+                  value={controls.cinematic}
+                  onChange={(event) => updateControl("cinematic", event.target.value)}
+                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/15"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Ratio</p>
+                <Select defaultValue="1:1" disabled>
+                  <option value="1:1">1:1 (MVP)</option>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Image Count</p>
+                <Select
+                  value={String(requestedImageCount)}
+                  onChange={(event) => {
+                    const next = Number.parseInt(event.target.value, 10);
+                    if (next >= 1 && next <= 4) {
+                      setRequestedImageCount(next as GenerationRequestDto["requested_image_count"]);
+                    }
+                  }}
+                >
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <p className="font-medium uppercase tracking-wide text-muted-foreground">Nostalgia</p>
+                  <span>{controls.nostalgia}</span>
+                </div>
+                <input
+                  id="control-nostalgia"
+                  type="range"
+                  min={-2}
+                  max={2}
+                  step={1}
+                  value={controls.nostalgia}
+                  onChange={(event) => updateControl("nostalgia", event.target.value)}
+                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/15"
+                />
+              </div>
             </div>
-          </div>
+          ) : null}
 
           {errorMessage !== null ? (
-            <div className="space-y-2">
-              <p className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            <div className="mt-4 space-y-2">
+              <p className="rounded-2xl bg-danger/15 px-3 py-2 text-sm text-danger">
                 {errorMessage}
               </p>
               {showBillingCta ? (
@@ -414,13 +485,8 @@ export function GeneratorForm(): React.JSX.Element {
               ) : null}
             </div>
           ) : null}
-
-            <Button type="submit" fullWidth disabled={submitting}>
-              {submitting ? "Üretim başlatılıyor..." : "Generate"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+        </form>
+      </div>
     </div>
   );
 }

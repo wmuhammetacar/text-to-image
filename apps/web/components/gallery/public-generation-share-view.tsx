@@ -239,7 +239,7 @@ export function PublicGenerationShareView(props: {
 
   if (loading) {
     return (
-      <Card>
+      <Card className="rounded-3xl">
         <CardHeader>
           <CardTitle>Paylaşım yükleniyor</CardTitle>
           <CardDescription>Public generation verisi hazırlanıyor.</CardDescription>
@@ -260,7 +260,68 @@ export function PublicGenerationShareView(props: {
 
   return (
     <div className="space-y-4">
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden rounded-3xl">
+        <CardContent className="p-0">
+          <div className="relative aspect-[16/9] bg-black/50">
+            {bestVariant?.signed_url !== null && bestVariant?.signed_url !== undefined ? (
+              <img
+                src={bestVariant.signed_url}
+                alt={detail.summary}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="grid h-full place-items-center text-sm text-muted-foreground">
+                Görsel önizleme yok
+              </div>
+            )}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 space-y-3 p-6">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="default">Pixora Share</Badge>
+                <Badge variant="muted">{detail.visibility}</Badge>
+                <span className="text-xs text-white/80">
+                  {detail.creator_display_name} · @{detail.creator_profile_handle}
+                </span>
+              </div>
+              <h1 className="max-w-4xl text-2xl font-semibold text-white sm:text-3xl">{detail.summary}</h1>
+              <p className="max-w-3xl text-sm text-white/85">
+                {detail.explainability_summary ?? detail.visual_plan_summary ?? "Açıklama bulunmuyor."}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  className="h-11 rounded-full px-6 text-base"
+                  onClick={() => void onRemix("manual")}
+                  disabled={remixSubmitting || !detail.remix.enabled || detail.remix.base_variant_id === null}
+                >
+                  {remixSubmitting ? "Remix başlatılıyor..." : "Remix this image"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-11 rounded-full bg-white/10 px-6 text-base text-white hover:bg-white/20"
+                  onClick={() => {
+                    trackProductEvent("share_clicked", {
+                      cta: "create_your_own",
+                      source: "share_page",
+                      share_slug: props.shareSlug,
+                    });
+                    trackProductEvent("funnel_share_completed", {
+                      source: "share_page",
+                      share_slug: props.shareSlug,
+                    });
+                    router.push("/login?next=%2F");
+                  }}
+                >
+                  Create your own
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-3xl">
         <CardHeader className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="default">Pixora Share</Badge>
@@ -269,42 +330,18 @@ export function PublicGenerationShareView(props: {
               {detail.creator_display_name} · @{detail.creator_profile_handle}
             </span>
           </div>
-          <CardTitle className="text-2xl">{detail.summary}</CardTitle>
+          <CardTitle className="text-xl">Remix Controls</CardTitle>
           <CardDescription>
-            {detail.explainability_summary ?? detail.visual_plan_summary ?? "Açıklama bulunmuyor."}
+            Variation türünü seçip aynı kaynaktan kendi versiyonunu üret.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              onClick={() => void onRemix("manual")}
-              disabled={remixSubmitting || !detail.remix.enabled || detail.remix.base_variant_id === null}
-            >
-              {remixSubmitting ? "Remix başlatılıyor..." : "Remix this"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                trackProductEvent("share_clicked", {
-                  cta: "create_your_own",
-                  source: "share_page",
-                  share_slug: props.shareSlug,
-                });
-                trackProductEvent("funnel_share_completed", {
-                  source: "share_page",
-                  share_slug: props.shareSlug,
-                });
-                router.push("/login?next=%2F");
-              }}
-            >
-              Create your own
-            </Button>
             {detail.style_tags[0] !== undefined ? (
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
+                className="rounded-full bg-white/8 hover:bg-white/15"
                 onClick={() => {
                   const tag = detail.style_tags[0] ?? "cinematic";
                   trackProductEvent("share_clicked", {
@@ -320,22 +357,6 @@ export function PublicGenerationShareView(props: {
             ) : null}
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-border bg-secondary">
-            <div className="aspect-[16/10]">
-              {bestVariant?.signed_url !== null && bestVariant?.signed_url !== undefined ? (
-                <img
-                  src={bestVariant.signed_url}
-                  alt={detail.summary}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="grid h-full place-items-center text-sm text-muted-foreground">
-                  Görsel önizleme yok
-                </div>
-              )}
-            </div>
-          </div>
-
           <div className="mt-4 flex flex-wrap gap-2">
             {detail.style_tags.map((tag) => (
               <Badge key={tag} variant="muted">
@@ -349,57 +370,47 @@ export function PublicGenerationShareView(props: {
             ))}
           </div>
           {remixCompletedSource !== null ? (
-            <p className="mt-3 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            <p className="mt-3 rounded-xl bg-emerald-400/15 px-3 py-2 text-sm text-emerald-200">
               You remixed this from @{remixCompletedSource}. Kendi versiyonun oluşturuldu.
             </p>
           ) : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Remix</CardTitle>
-          <CardDescription>
-            Bu sonucu temel alıp yeni bir run başlatır. Remix context backend’e korunarak taşınır.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="remix-type">Remix tipi</Label>
-            <Select
-              id="remix-type"
-              value={remixType}
-              onChange={(event) => {
-                const value = event.target.value as VariationRequestDto["variation_type"];
-                setRemixType(value);
-              }}
+          <div className="mt-4 space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="remix-type">Remix tipi</Label>
+              <Select
+                id="remix-type"
+                value={remixType}
+                onChange={(event) => {
+                  const value = event.target.value as VariationRequestDto["variation_type"];
+                  setRemixType(value);
+                }}
+              >
+                {remixOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <Button
+              type="button"
+              className="h-11 w-full rounded-full text-base"
+              onClick={() => void onRemix()}
+              disabled={remixSubmitting || !detail.remix.enabled || detail.remix.base_variant_id === null}
             >
-              {remixOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
+              {remixSubmitting ? "Remix başlatılıyor..." : "Remix this image"}
+            </Button>
+            {remixMessage !== null ? (
+              <p className="rounded-xl bg-danger/15 px-3 py-2 text-sm text-danger">
+                {remixMessage}
+              </p>
+            ) : null}
           </div>
-
-          <Button
-            type="button"
-            onClick={() => void onRemix()}
-            disabled={remixSubmitting || !detail.remix.enabled || detail.remix.base_variant_id === null}
-          >
-            {remixSubmitting ? "Remix başlatılıyor..." : "Remix ile devam et"}
-          </Button>
-
-          {remixMessage !== null ? (
-            <p className="rounded-xl border border-border bg-secondary/40 px-3 py-2 text-sm">
-              {remixMessage}
-            </p>
-          ) : null}
         </CardContent>
       </Card>
 
       {detail.lineage.remix_source_generation_id !== null ? (
-        <Card>
+        <Card className="rounded-3xl">
           <CardHeader>
             <CardTitle>Remix Kökeni</CardTitle>
             <CardDescription>
@@ -407,14 +418,14 @@ export function PublicGenerationShareView(props: {
             </CardDescription>
           </CardHeader>
           <CardContent className="text-sm">
-            <p className="rounded-xl border border-border bg-secondary/40 px-3 py-2">
+            <p className="rounded-xl bg-white/8 px-3 py-2">
               You remixed this from generation {detail.lineage.remix_source_generation_id}
             </p>
           </CardContent>
         </Card>
       ) : null}
 
-      <Card>
+      <Card className="rounded-3xl">
         <CardHeader>
           <CardTitle>Lineage ve Sosyal Kanıt</CardTitle>
           <CardDescription>
@@ -423,21 +434,21 @@ export function PublicGenerationShareView(props: {
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div className="grid gap-2 md:grid-cols-2">
-            <p className="rounded-xl border border-border bg-secondary/40 px-3 py-2">
+            <p className="rounded-xl bg-white/8 px-3 py-2">
               Remix depth: {detail.lineage.remix_depth}
             </p>
-            <p className="rounded-xl border border-border bg-secondary/40 px-3 py-2">
+            <p className="rounded-xl bg-white/8 px-3 py-2">
               Direct remix: {detail.social_proof.remix_count}
             </p>
-            <p className="rounded-xl border border-border bg-secondary/40 px-3 py-2">
+            <p className="rounded-xl bg-white/8 px-3 py-2">
               Branch count: {detail.social_proof.branch_count}
             </p>
-            <p className="rounded-xl border border-border bg-secondary/40 px-3 py-2">
+            <p className="rounded-xl bg-white/8 px-3 py-2">
               Creator public generation: {detail.social_proof.creator_public_generation_count}
             </p>
           </div>
 
-          <div className="space-y-2 rounded-xl border border-border bg-secondary/30 p-3 text-xs text-muted-foreground">
+          <div className="space-y-2 rounded-xl bg-white/6 p-3 text-xs text-muted-foreground">
             <p>
               Root public generation: {detail.lineage.root_public_generation_id ?? "none"}
             </p>
@@ -460,7 +471,7 @@ export function PublicGenerationShareView(props: {
       </Card>
 
       {exploreItems.length > 0 ? (
-        <Card>
+        <Card className="rounded-3xl">
           <CardHeader>
             <CardTitle>Explore Similar</CardTitle>
             <CardDescription>
@@ -473,7 +484,7 @@ export function PublicGenerationShareView(props: {
                 <Button
                   key={item.shareSlug}
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   className="justify-start"
                   onClick={() => {
                     router.push(`/share/${item.shareSlug}`);
@@ -487,7 +498,7 @@ export function PublicGenerationShareView(props: {
         </Card>
       ) : null}
 
-      <Card>
+      <Card className="rounded-3xl">
         <CardHeader>
           <CardTitle>Bu Creator’dan Daha Fazla</CardTitle>
           <CardDescription>
@@ -506,7 +517,7 @@ export function PublicGenerationShareView(props: {
                 <a
                   key={item.generation_id}
                   href={`/share/${item.share_slug}`}
-                  className="overflow-hidden rounded-2xl border border-border bg-secondary/20 transition hover:border-primary/40"
+                  className="overflow-hidden rounded-2xl bg-white/6 transition duration-200 hover:-translate-y-0.5 hover:bg-white/10"
                 >
                   <div className="aspect-[4/3] bg-secondary">
                     {item.featured_image_url !== null ? (
@@ -534,7 +545,7 @@ export function PublicGenerationShareView(props: {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="rounded-3xl">
         <CardHeader>
           <CardTitle>Varyantlar</CardTitle>
           <CardDescription>Public-safe signed URL ile listelenir.</CardDescription>
@@ -548,7 +559,7 @@ export function PublicGenerationShareView(props: {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {detail.variants.map((variant) => (
-                <div key={variant.image_variant_id} className="overflow-hidden rounded-2xl border border-border">
+                <div key={variant.image_variant_id} className="overflow-hidden rounded-2xl bg-white/6">
                   <div className="aspect-square bg-secondary">
                     {variant.signed_url !== null ? (
                       <img
