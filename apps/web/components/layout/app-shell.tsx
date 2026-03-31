@@ -28,12 +28,12 @@ export function AppShell(props: {
   const pathname = usePathname();
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[1600px] gap-4 px-4 py-4 md:px-6">
-      <aside className="glass-panel hidden w-56 shrink-0 rounded-3xl p-3 md:flex md:flex-col md:justify-between">
-        <div className="space-y-4">
+    <div className="mx-auto flex min-h-screen w-full max-w-[1600px] gap-3 px-3 py-3 md:px-5">
+      <aside className="hidden w-44 shrink-0 rounded-3xl bg-white/[0.035] p-2.5 backdrop-blur-xl md:flex md:flex-col md:justify-between">
+        <div className="space-y-3">
           <div className="px-2 pt-1">
-            <h1 className="text-base font-semibold tracking-tight text-white/95">Pixora</h1>
-            <p className="text-[11px] text-muted-foreground">Yaratıcı işletim sistemi</p>
+            <h1 className="text-sm font-semibold tracking-tight text-white/90">Pixora</h1>
+            <p className="text-[10px] text-white/35">Creative OS</p>
           </div>
 
           <nav className="space-y-1">
@@ -45,23 +45,29 @@ export function AppShell(props: {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition duration-200",
+                    "flex items-center gap-2 rounded-xl px-2.5 py-2 text-sm transition duration-200",
                     isActive
-                      ? "soft-glow bg-primary/95 text-primary-foreground"
-                      : "text-foreground/70 hover:bg-white/7 hover:text-white",
+                      ? "soft-glow bg-primary/90 text-primary-foreground"
+                      : "text-foreground/55 hover:bg-white/8 hover:text-white/90",
                   )}
                 >
                   <Icon className="h-4 w-4" />
-                  <span>{item.label}</span>
+                  <span className="text-[13px]">{item.label}</span>
                 </Link>
               );
             })}
           </nav>
         </div>
 
-        <div className="space-y-2 border-t border-white/10 px-1 pt-3">
-          <p className="truncate text-[10px] text-white/35">{props.userEmail ?? "Kullanıcı"}</p>
-          <Button variant="ghost" size="sm" fullWidth className="justify-start" onClick={() => void props.onSignOut()}>
+        <div className="space-y-2 border-t border-white/5 px-1 pt-2.5">
+          <p className="truncate text-[10px] text-white/25">{props.userEmail ?? "Kullanıcı"}</p>
+          <Button
+            variant="ghost"
+            size="sm"
+            fullWidth
+            className="justify-start text-white/70 hover:text-white"
+            onClick={() => void props.onSignOut()}
+          >
             <LogOut className="mr-2 h-4 w-4" />
             Çıkış Yap
           </Button>

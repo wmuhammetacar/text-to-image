@@ -319,14 +319,12 @@ export function GeneratorForm(): React.JSX.Element {
               <Sparkles className="h-3.5 w-3.5 text-cyan-300" />
               Pixora yaratıcı yüzeyi
             </p>
-            <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
-              Fikrini yaz, Pixora görsel dilini kursun
-            </h2>
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">Bir fikir başlat</h2>
           </div>
 
           <Textarea
             id="generation-text"
-            placeholder="Ne üretmek istediğini anlat..."
+            placeholder="Ne üretmek istersin?"
             value={text}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => {
@@ -340,7 +338,7 @@ export function GeneratorForm(): React.JSX.Element {
             required
           />
           <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground/80">
-            <span>Enter üretir · Shift+Enter satır atlar</span>
+            <span>Enter ile başlat · Shift+Enter yeni satır</span>
             <span>{text.length}/5000</span>
           </div>
 
@@ -352,19 +350,12 @@ export function GeneratorForm(): React.JSX.Element {
               className="rounded-full bg-white/7 px-4 text-white/90"
             >
               <SlidersHorizontal className="mr-2 h-4 w-4" />
-              İnce ayar
+              Ayarlar
             </Button>
 
-            <div className="flex items-center gap-2">
-              <span className="hidden text-xs text-muted-foreground sm:inline">Tek ana aksiyon</span>
-              <Button
-                type="submit"
-                disabled={submitting}
-                className="rounded-full px-6 text-sm"
-              >
-                {submitting ? "Pixora düşünüyor..." : "Üret"}
-              </Button>
-            </div>
+            <Button type="submit" disabled={submitting} className="rounded-full px-6 text-sm">
+              {submitting ? "Pixora düşünüyor..." : "Üret"}
+            </Button>
           </div>
 
           {showControls ? (

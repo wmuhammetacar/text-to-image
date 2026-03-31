@@ -175,6 +175,7 @@ function mapQuickActionError(error: unknown): string {
 export function QuickActions(props: {
   variantId: string | null;
   disabled: boolean;
+  actions?: QuickActionDefinition[];
   onQueued: (params: {
     runId: string;
     actionLabel: string;
@@ -184,6 +185,7 @@ export function QuickActions(props: {
   onLoadingVariantChange?: (variantId: string | null) => void;
 }): React.JSX.Element {
   const [loadingActionKey, setLoadingActionKey] = useState<string | null>(null);
+  const actionsToRender = props.actions ?? quickActionDefinitions;
 
   const onAction = async (action: QuickActionDefinition): Promise<void> => {
     if (props.variantId === null || props.disabled) {
@@ -213,12 +215,12 @@ export function QuickActions(props: {
 
   return (
     <div className="flex flex-wrap gap-2">
-      {quickActionDefinitions.map((action) => (
+      {actionsToRender.map((action) => (
         <Button
           key={action.key}
           size="sm"
           variant="ghost"
-          className="h-8 justify-start rounded-full bg-white/8 px-3 text-xs text-white/90 hover:-translate-y-0.5 hover:bg-white/14"
+          className="h-9 justify-start rounded-full bg-white/8 px-4 text-xs text-white/90 transition hover:-translate-y-0.5 hover:bg-white/14"
           disabled={props.disabled || props.variantId === null || loadingActionKey !== null}
           onClick={() => void onAction(action)}
           data-testid={`quick-action-${action.key}`}

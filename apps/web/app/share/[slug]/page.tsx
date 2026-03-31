@@ -36,30 +36,16 @@ export default async function SharePage({ params, searchParams }: PageProps): Pr
   const initialRemixType = isVariationType(query.remix_type) ? query.remix_type : null;
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] space-y-5 px-4 py-6 md:px-6">
-      <div className="glass-panel flex flex-wrap items-center justify-between gap-2 rounded-3xl px-4 py-3">
-        <div className="text-xs text-muted-foreground">
-          Pixora paylaşım · Yaratıcı üretim vitrini
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href={`/login?next=${encodeURIComponent(`/share/${slug}?auto_remix=1${initialRemixType !== null ? `&remix_type=${initialRemixType}` : ""}&from=share_cta`)}`}
-            className={buttonVariants({ variant: "default", className: "rounded-full px-5" })}
-          >
-            Bu görseli remixle
-          </Link>
-          <Link href="/login?next=%2F" className={buttonVariants({ variant: "outline", className: "rounded-full px-5" })}>
-            Kendi görselini üret
-          </Link>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
+    <div className="mx-auto w-full max-w-[1600px] space-y-4 px-4 py-4 md:px-6">
+      <div className="flex items-center justify-between">
         <Link href="/gallery" className={buttonVariants({ variant: "ghost", className: "rounded-full bg-white/8 px-4" })}>
-          Galeriye dön
+          Galeri
         </Link>
-        <Link href="/" className={buttonVariants({ variant: "ghost", className: "rounded-full bg-white/8 px-4" })}>
-          Uygulamaya dön
+        <Link
+          href={`/login?next=${encodeURIComponent(`/share/${slug}?auto_remix=1${initialRemixType !== null ? `&remix_type=${initialRemixType}` : ""}&from=share_cta`)}`}
+          className={buttonVariants({ variant: "default", className: "rounded-full px-5" })}
+        >
+          Remixle
         </Link>
       </div>
       <PublicGenerationShareView
@@ -67,10 +53,6 @@ export default async function SharePage({ params, searchParams }: PageProps): Pr
         autoRemix={autoRemix}
         initialRemixType={initialRemixType}
       />
-
-      <footer className="glass-panel rounded-3xl px-4 py-3 text-center text-xs text-muted-foreground">
-        Pixora ile üretildi · Paylaş, remixle, dönüştür
-      </footer>
     </div>
   );
 }
