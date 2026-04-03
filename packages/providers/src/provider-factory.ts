@@ -72,6 +72,18 @@ function resolveImageAssetStore(
   return new SupabaseImageAssetStore(deps.serviceSupabaseClient);
 }
 
+function resolveOptionalImageAssetStore(deps: ProviderFactoryDeps): ImageAssetStore | undefined {
+  if (deps.imageAssetStore !== undefined) {
+    return deps.imageAssetStore;
+  }
+
+  if (deps.serviceSupabaseClient !== undefined) {
+    return new SupabaseImageAssetStore(deps.serviceSupabaseClient, "mock-image-generation");
+  }
+
+  return undefined;
+}
+
 function createEmotionProvider(
   config: ProviderFactoryConfig,
   deps: ProviderFactoryDeps,
@@ -103,7 +115,10 @@ function createImageProvider(
   deps: ProviderFactoryDeps,
 ): ImageGenerationProvider {
   if (config.imageGenerationProviderType === "mock") {
-    return new MockImageGenerationProvider();
+    return new MockImageGenerationProvider(
+      config.imageStorageBucket,
+      resolveOptionalImageAssetStore(deps),
+    );
   }
 
   if (config.imageGenerationProviderType === "openai") {

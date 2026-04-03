@@ -5,7 +5,9 @@ import {
   type ImageGenerationProvider,
   type ImageGenerationResult,
 } from "@vi/application";
+import type { ImageAssetStore } from "./image-asset-store";
 import { includesScenarioFlag } from "./deterministic";
+import { ProviderRetryableError } from "./errors";
 
 function buildVariant(
   input: ImageGenerationInput,
@@ -47,11 +49,23 @@ function buildVariant(
   };
 }
 
+const MOCK_PLACEHOLDER_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP8z/CfAQADgwG6H2bJXwAAAABJRU5ErkJggg==";
+
+function placeholderPngBytes(): Uint8Array {
+  return Uint8Array.from(Buffer.from(MOCK_PLACEHOLDER_PNG_BASE64, "base64"));
+}
+
 export class MockImageGenerationProvider implements ImageGenerationProvider {
   private readonly storageBucket: string;
+  private readonly imageAssetStore: ImageAssetStore | undefined;
 
-  public constructor(storageBucket = "generated-images") {
+  public constructor(
+    storageBucket = "generated-images",
+    imageAssetStore?: ImageAssetStore,
+  ) {
     this.storageBucket = storageBucket;
+    this.imageAssetStore = imageAssetStore;
   }
 
   public async generate(input: ImageGenerationInput): Promise<ImageGenerationResult> {
@@ -68,8 +82,36 @@ export class MockImageGenerationProvider implements ImageGenerationProvider {
       : requested;
 
     const variants: GeneratedVariant[] = [];
+    const uploadErrors: Error[] = [];
     for (let idx = 1; idx <= produced; idx += 1) {
-      variants.push(buildVariant(input, idx, this.storageBucket));
+      const candidate = buildVariant(input, idx, this.storageBucket);
+      if (this.imageAssetStore === undefined) {
+        variants.push(candidate);
+        continue;
+      }
+
+      try {
+        await this.imageAssetStore.upload({
+          bucket: candidate.storageBucket,
+          path: candidate.storagePath,
+          contentType: candidate.mimeType,
+          bytes: placeholderPngBytes(),
+        });
+        variants.push(candidate);
+      } catch (error) {
+        uploadErrors.push(error instanceof Error ? error : new Error("MOCK_STORAGE_UPLOAD_FAILED"));
+      }
+    }
+
+    if (variants.length === 0 && uploadErrors.length > 0) {
+      const firstError = uploadErrors[0];
+      if (firstError !== undefined) {
+        throw new ProviderRetryableError({
+          providerName: "mock-image-generation",
+          message: `Mock görüntü yazımı başarısız: ${firstError.message}`,
+          code: "MOCK_STORAGE_UPLOAD_FAILED",
+        });
+      }
     }
 
     return {
@@ -99,6 +141,8 @@ export class MockImageGenerationProvider implements ImageGenerationProvider {
       },
       providerResponseRedacted: {
         produced_image_count: produced,
+        uploaded_image_count: variants.length,
+        upload_error_count: uploadErrors.length,
       },
     };
   }

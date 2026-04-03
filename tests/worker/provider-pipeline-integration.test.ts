@@ -139,7 +139,7 @@ function jsonResponse(body: Record<string, unknown>, status = 200): Response {
 }
 
 describe("Provider pipeline integration", () => {
-  it("config mock iken mock providerlar ile pipeline tamamlanir", async () => {
+  it("config mock iken mock providerlar ile pipeline tamamlanir ve mock görsel storage'a yazilir", async () => {
     const repository = new InMemoryRepository();
     repository.seedUser(USER_ID, 6);
 
@@ -150,23 +150,32 @@ describe("Provider pipeline integration", () => {
       idempotencyKey: "idem-provider-mock-1",
     });
 
-    const bundle = createProviderBundle({
-      textAnalysisProviderType: "mock",
-      imageGenerationProviderType: "mock",
-      safetyShapingProviderType: "mock",
-      imageStorageBucket: "generated-images",
-      providerTimeoutMs: 1000,
-      providerHttpMaxRetries: 0,
-      openAiBaseUrl: "https://api.openai.com/v1",
-      openAiTextModel: "gpt-4.1-mini",
-      openAiImageModel: "gpt-image-1",
-      openAiImageSize: "1024x1024",
-      openAiApiKey: undefined,
-    });
+    const { store, uploadedPaths } = createMemoryStore();
+    const bundle = createProviderBundle(
+      {
+        textAnalysisProviderType: "mock",
+        imageGenerationProviderType: "mock",
+        safetyShapingProviderType: "mock",
+        imageStorageBucket: "generated-images",
+        providerTimeoutMs: 1000,
+        providerHttpMaxRetries: 0,
+        openAiBaseUrl: "https://api.openai.com/v1",
+        openAiTextModel: "gpt-4.1-mini",
+        openAiImageModel: "gpt-image-1",
+        openAiImageSize: "1024x1024",
+        openAiApiKey: undefined,
+      },
+      {
+        imageAssetStore: store,
+      },
+    );
 
     const tick = await runWorkerTick(createWorkerDeps({ repository, providerBundle: bundle }));
     expect(tick).toBe("completed");
     expect(repository.getRun(created.runId)?.pipelineState).toBe("completed");
+    expect(uploadedPaths.some((path) =>
+      path.includes(`${created.generationId}/${created.runId}/enhancement/variant-1.png`)
+    )).toBe(true);
   });
 
   it("config real iken real adapter secilir ve storage_path yazilir", async () => {
