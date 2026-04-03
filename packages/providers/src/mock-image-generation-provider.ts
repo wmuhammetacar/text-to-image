@@ -23,7 +23,7 @@ function buildVariant(
     directionIndex: index,
     storageBucket: bucket,
     storagePath: `${input.generationId}/${input.runId}/${passPrefix}variant-${index}.png`,
-    mimeType: "image/png",
+    mimeType: "image/svg+xml",
     width: 1024,
     height: 1024,
     metadata: {
@@ -49,11 +49,43 @@ function buildVariant(
   };
 }
 
-const MOCK_PLACEHOLDER_PNG_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP8z/CfAQADgwG6H2bJXwAAAABJRU5ErkJggg==";
+function hueFromSeed(seed: string): number {
+  let sum = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    sum = (sum + seed.charCodeAt(i) * (i + 3)) % 360;
+  }
+  return sum;
+}
 
-function placeholderPngBytes(): Uint8Array {
-  return Uint8Array.from(Buffer.from(MOCK_PLACEHOLDER_PNG_BASE64, "base64"));
+function buildMockPlaceholderSvg(input: ImageGenerationInput, variantIndex: number): string {
+  const seed = `${input.generationId}:${input.runId}:${variantIndex}`;
+  const primaryHue = hueFromSeed(seed);
+  const secondaryHue = (primaryHue + 72) % 360;
+  const tertiaryHue = (primaryHue + 210) % 360;
+  const shortRun = input.runId.slice(0, 8);
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">`,
+    `<defs>`,
+    `<linearGradient id="g" x1="0" y1="0" x2="1" y2="1">`,
+    `<stop offset="0%" stop-color="hsl(${primaryHue}, 88%, 56%)"/>`,
+    `<stop offset="52%" stop-color="hsl(${secondaryHue}, 92%, 48%)"/>`,
+    `<stop offset="100%" stop-color="hsl(${tertiaryHue}, 86%, 36%)"/>`,
+    `</linearGradient>`,
+    `</defs>`,
+    `<rect width="1024" height="1024" fill="url(#g)"/>`,
+    `<circle cx="790" cy="190" r="230" fill="rgba(255,255,255,0.20)"/>`,
+    `<circle cx="300" cy="780" r="280" fill="rgba(0,0,0,0.18)"/>`,
+    `<rect x="66" y="740" width="892" height="220" rx="34" fill="rgba(8,9,14,0.42)"/>`,
+    `<text x="96" y="824" font-size="44" font-family="Inter, Arial, sans-serif" fill="rgba(255,255,255,0.96)">Pixora Preview</text>`,
+    `<text x="96" y="878" font-size="28" font-family="Inter, Arial, sans-serif" fill="rgba(255,255,255,0.84)">Run ${shortRun} · Variant ${variantIndex}</text>`,
+    `</svg>`,
+  ].join("");
+}
+
+function placeholderImageBytes(input: ImageGenerationInput, variantIndex: number): Uint8Array {
+  const svg = buildMockPlaceholderSvg(input, variantIndex);
+  return new TextEncoder().encode(svg);
 }
 
 export class MockImageGenerationProvider implements ImageGenerationProvider {
@@ -95,7 +127,7 @@ export class MockImageGenerationProvider implements ImageGenerationProvider {
           bucket: candidate.storageBucket,
           path: candidate.storagePath,
           contentType: candidate.mimeType,
-          bytes: placeholderPngBytes(),
+          bytes: placeholderImageBytes(input, idx),
         });
         variants.push(candidate);
       } catch (error) {

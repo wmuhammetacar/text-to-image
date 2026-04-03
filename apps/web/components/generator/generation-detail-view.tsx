@@ -293,9 +293,25 @@ export function GenerationDetailView(props: { generationId: string }): React.JSX
         return a.variant_index - b.variant_index;
       });
 
+    const selectedVariant = sorted.find(
+      (variant) => variant.image_variant_id === uiState.selectedVariantId,
+    );
+    const selectedVariantHasRenderableImage =
+      selectedVariant !== undefined &&
+      selectedVariant.status === "completed" &&
+      selectedVariant.signed_url !== null;
+
     const fallbackSelected =
-      sorted.find((variant) => variant.image_variant_id === uiState.selectedVariantId)?.image_variant_id ??
-      sorted.find((variant) => variant.image_variant_id === detail.best_variant_id)?.image_variant_id ??
+      (selectedVariantHasRenderableImage ? selectedVariant.image_variant_id : null) ??
+      sorted.find(
+        (variant) =>
+          variant.image_variant_id === detail.best_variant_id &&
+          variant.status === "completed" &&
+          variant.signed_url !== null,
+      )?.image_variant_id ??
+      sorted.find(
+        (variant) => variant.status === "completed" && variant.signed_url !== null,
+      )?.image_variant_id ??
       sorted.find((variant) => variant.status === "completed")?.image_variant_id ??
       sorted[0]?.image_variant_id ??
       null;
